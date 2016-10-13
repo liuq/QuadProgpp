@@ -339,7 +339,11 @@ l2a:/* Step 2a: determine step direction */
   }
   /* Compute t2: full step length (minimum step in primal space such that the constraint ip becomes feasible */
   if (fabs(scalar_product(z, z))  > std::numeric_limits<double>::epsilon()) // i.e. z != 0
+  {
     t2 = -s[ip] / scalar_product(z, np);
+    if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
+      t2 = inf;
+  }
   else
     t2 = inf; /* +inf */
   

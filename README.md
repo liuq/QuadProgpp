@@ -12,4 +12,8 @@ To build the library simply go through the `cmake .; make; make install` cycle.
 
 In order to use it, you will be required to include in your code file the `Array.hh` header, which contains a handy C++ implementation of Vectors and Matrices.
 
-Copyright (C) 2001-2016 Luca Di Gaspero. 
+## Contribution
+
+Contributions and bug fixes are welcome.
+
+Copyright (C) 2001-2016 Luca Di Gaspero, MIT License. 

@@ -1,6 +1,6 @@
 # QuadProg++
 
-A C++ library for Quadratic Programming which implements the Goldfarb-Idnani active-set dual method. 
+A C++ library for Quadratic Programming which implements the [http://www.javaquant.net/papers/goldfarbidnani.pdf](Goldfarb-Idnani active-set dual method). 
 
 At present it is limited to the solution of strictly convex quadratic programs.
 

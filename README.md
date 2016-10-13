@@ -4,7 +4,7 @@ A C++ library for Quadratic Programming which implements the Goldfarb-Idnani act
 
 At present it is limited to the solution of strictly convex quadratic programs.
 
-Previous versions of the project were hosted on [http://quadprog.sourceforge.net](sourceforge).
+Previous versions of the project were hosted on [https://sourceforge.net/projects/quadprog/?source=directory](sourceforge).
 
 ## Install
 

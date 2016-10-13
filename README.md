@@ -16,4 +16,4 @@ In order to use it, you will be required to include in your code file the `Array
 
 Contributions and bug fixes are welcome.
 
-Copyright (C) 2001-2016 Luca Di Gaspero, MIT License. 
+Copyright (C) 2007-2016 Luca Di Gaspero, [MIT License](LICENSE). 

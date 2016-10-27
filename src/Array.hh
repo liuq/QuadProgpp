@@ -3,18 +3,8 @@
 // aimed at easing the development of Local Search algorithms.
 // Copyright (C) 2001--2008 Andrea Schaerf, Luca Di Gaspero. 
 //
-// EasyLocalpp is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// EasyLocalpp is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with EasyLocalpp. If not, see <http://www.gnu.org/licenses/>.
+// This software may be modified and distributed under the terms
+// of the MIT license.  See the LICENSE file for details.
 
 #if !defined(_ARRAY_HH)
 #define _ARRAY_HH

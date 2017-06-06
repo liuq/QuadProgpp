@@ -20,6 +20,8 @@ File $Id: QuadProg++.cc 232 2007-06-21 12:29:00Z digasper $
 #include "QuadProg++.hh"
 //#define TRACE_SOLVER
 
+namespace quadprogpp {
+
 // Utility functions for updating some data needed by the solution method 
 void compute_d(Vector<double>& d, const Matrix<double>& J, const Vector<double>& np);
 void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<double>& d, int iq);
@@ -784,3 +786,5 @@ void print_vector(char* name, const Vector<T>& v, int n)
 	
   std::cout << t << std::endl;
 }
+
+}  // namespace quadprogpp

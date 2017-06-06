@@ -11,6 +11,8 @@
   Index utilities
  */
 
+namespace quadprogpp {
+
 std::set<unsigned int> seq(unsigned int s, unsigned int e)
 {
 	std::set<unsigned int> tmp;
@@ -27,3 +29,5 @@ std::set<unsigned int> singleton(unsigned int i)
 	
 	return tmp;
 }
+
+}  // namespace quadprogpp

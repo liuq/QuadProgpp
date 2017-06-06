@@ -37,8 +37,8 @@
 #include "QuadProg++.hh"
 
 int main (int argc, char *const argv[]) {
-  Matrix<double> G, CE, CI;
-  Vector<double> g0, ce0, ci0, x;
+  quadprogpp::Matrix<double> G, CE, CI;
+  quadprogpp::Vector<double> g0, ce0, ci0, x;
 	int n, m, p;
 	double sum = 0.0;
 	char ch;

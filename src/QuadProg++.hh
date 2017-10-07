@@ -64,9 +64,13 @@ s.t.
 
 #include "Array.hh"
 
+namespace quadprogpp {
+
 double solve_quadprog(Matrix<double>& G, Vector<double>& g0, 
                       const Matrix<double>& CE, const Vector<double>& ce0,  
                       const Matrix<double>& CI, const Vector<double>& ci0, 
                       Vector<double>& x);
+
+}  // namespace quadprogpp
 
 #endif // #define _QUADPROGPP

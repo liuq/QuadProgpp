@@ -16,6 +16,8 @@
 #include <cmath>
 #include <cstdlib>
 
+namespace quadprogpp {
+
 enum MType { DIAG };
 
 template <typename T>
@@ -729,7 +731,7 @@ inline Vector<T> log(const Vector<T>& v)
 }
 
 template <typename T>
-inline Vector<T> sqrt(const Vector<T>& v)
+inline Vector<T> vec_sqrt(const Vector<T>& v)
 {
   Vector<T> tmp(v.size());
   for (unsigned int i = 0; i < v.size(); i++)
@@ -2315,7 +2317,7 @@ Vector<T> var(const Matrix<T>& m, bool sample_correction = false)
 template <typename T>
 Vector<T> stdev(const Matrix<T>& m, bool sample_correction = false)
 {
-  return sqrt(var(m, sample_correction));
+  return vec_sqrt(var(m, sample_correction));
 }
 
 template <typename T>
@@ -2344,7 +2346,7 @@ Vector<T> r_var(const Matrix<T>& m, bool sample_correction = false)
 template <typename T>
 Vector<T> r_stdev(const Matrix<T>& m, bool sample_correction = false)
 {
-  return sqrt(r_var(m, sample_correction));
+  return vec_sqrt(r_var(m, sample_correction));
 }
 
 template <typename T>
@@ -2430,7 +2432,7 @@ Matrix<T> exp(const Matrix<T>&m)
 }
 
 template <typename T>
-Matrix<T> sqrt(const Matrix<T>&m)
+Matrix<T> mat_sqrt(const Matrix<T>&m)
 {
   Matrix<T> tmp(m.nrows(), m.ncols());
 	
@@ -2535,5 +2537,7 @@ inline Matrix<double> r_rank(const Matrix<T> m)
   
   return tmp;                  
 }
+
+} // namespace quadprogpp
 
 #endif // define _ARRAY_HH_

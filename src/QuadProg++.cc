@@ -27,7 +27,7 @@ void compute_d(Vector<double>& d, const Matrix<double>& J, const Vector<double>&
 void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<double>& d, int iq);
 void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<double>& d, int iq);
 bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, unsigned int& iq, double& rnorm);
-void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, int n, int p, unsigned int& iq, int l);
+void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, unsigned int n, int p, unsigned int& iq, int l);
 
 // Utility functions for computing the Cholesky decomposition and solving
 // linear systems
@@ -246,8 +246,6 @@ l1:	iter++;
   if (fabs(psi) <= m * std::numeric_limits<double>::epsilon() * c1 * c2* 100.0)
   {
     /* numerically there are not infeasibilities anymore */
-//    q = iq;
-    
     return f_value;
   }
   
@@ -272,8 +270,6 @@ l2: /* Step 2: check for feasibility and determine a new S-pair */
     }
   if (ss >= 0.0)
   {
-//    q = iq;
-    
     return f_value;
   }
   
@@ -492,13 +488,13 @@ inline void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<do
   }
 }
 
-bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, int& iq, double& R_norm)
+bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, unsigned int& iq, double& R_norm)
 {
-  int n = d.size();
+  unsigned int n = d.size();
 #ifdef TRACE_SOLVER
   std::cout << "Add constraint " << iq << '/';
 #endif
-  register int i, j, k;
+  register unsigned int i, j, k;
   double cc, ss, h, t1, t2, xny;
 	
   /* we have to find the Givens rotation which will reduce the element
@@ -563,22 +559,30 @@ bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, int
   return true;
 }
 
-void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, int n, int p, int& iq, int l)
+void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, unsigned int n, int p, unsigned int& iq, int l)
 {
 #ifdef TRACE_SOLVER
   std::cout << "Delete constraint " << l << ' ' << iq;
 #endif
-  register int i, j, k, qq = -1; // just to prevent warnings from smart compilers
+  register unsigned int i, j, k, qq = 0; // just to prevent warnings from smart compilers
   double cc, ss, h, xny, t1, t2;
-  
+
+  bool found = false;
   /* Find the index qq for active constraint l to be removed */
   for (i = p; i < iq; i++)
     if (A[i] == l)
     {
       qq = i;
+      found = true;
       break;
     }
-      
+
+  if(!found)
+  {
+    std::ostringstream os;
+    os << "Attempt to delete non existing constraint, constraint: " << l;
+    throw std::invalid_argument(os.str());
+  }
   /* remove the constraint from the active set and the duals */
   for (i = qq; i < iq - 1; i++)
     {

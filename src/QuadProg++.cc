@@ -26,8 +26,8 @@ namespace quadprogpp {
 void compute_d(Vector<double>& d, const Matrix<double>& J, const Vector<double>& np);
 void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<double>& d, int iq);
 void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<double>& d, int iq);
-bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, int& iq, double& rnorm);
-void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, int n, int p, int& iq, int l);
+bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, unsigned int& iq, double& rnorm);
+void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, int n, int p, unsigned int& iq, int l);
 
 // Utility functions for computing the Cholesky decomposition and solving
 // linear systems
@@ -55,7 +55,7 @@ double solve_quadprog(Matrix<double>& G, Vector<double>& g0,
                       Vector<double>& x)
 {
   std::ostringstream msg;
-  int n = G.ncols(), p = CE.ncols(), m = CI.ncols();
+  unsigned int n = G.ncols(), p = CE.ncols(), m = CI.ncols();
   if (G.nrows() != n)
   {
     msg << "The matrix G is not a squared matrix (" << G.nrows() << " x " << G.ncols() << ")";
@@ -82,7 +82,7 @@ double solve_quadprog(Matrix<double>& G, Vector<double>& g0,
     throw std::logic_error(msg.str());
   }
   x.resize(n);
-  register int i, j, k, l; /* indices */
+  register unsigned int i, j, k, l; /* indices */
   int ip; // this is the index of the constraint to be added to the active set
   Matrix<double> R(n, n), J(n, n);
   Vector<double> s(m + p), z(n), r(m + p), d(n), np(n), u(m + p), x_old(n), u_old(m + p);
@@ -95,7 +95,7 @@ double solve_quadprog(Matrix<double>& G, Vector<double>& g0,
   double t, t1, t2; /* t is the step lenght, which is the minimum of the partial step length t1 
     * and the full step length t2 */
   Vector<int> A(m + p), A_old(m + p), iai(m + p);
-  int q, iq, iter = 0;
+  unsigned int q, iq, iter = 0;
   Vector<bool> iaexcl(m + p);
 	
   /* p is the number of equality constraints */

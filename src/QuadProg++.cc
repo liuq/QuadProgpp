@@ -475,7 +475,7 @@ inline void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<do
 
 inline void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<double>& d, int iq)
 {
-  register int i, j, n = d.size();
+  register int i, j;
   register double sum;
   
   /* setting of r = R^-1 d */

@@ -2494,7 +2494,7 @@ Matrix<T> dot_prod(const Matrix<T>& a, const Vector<T>& b)
 template <typename T>
 Matrix<T> dot_prod(const Vector<T>& a, const Matrix<T>& b)
 {
-  if (a.size() != b.ncols())
+  if (a.size() != b.nrows())
     throw std::logic_error("Error matrix dot product: dimensions of the vector and matrix are not compatible");
   Matrix<T> tmp(1, b.ncols());
   for (unsigned int j = 0; j < tmp.ncols(); j++)

@@ -15,8 +15,8 @@
  s.t.
    x_1 + x_2 = 3
    x_1 >= 0
-   x_2 >= 0
    x_1 + x_2 >= 2
+   x_2 >= 0
  
  The solution is x^T = [1 2] and f(x) = 12
  
@@ -84,7 +84,7 @@ int main (int argc, char *const argv[]) {
 	p = 3;
   CI.resize(n, p);
   {
-		std::istringstream is("1.0, 0.0, 1.0, "
+		std::istringstream is("1.0, 1.0, 0.0, "
 													"0.0, 1.0, 1.0 ");
   
 		for (int i = 0; i < n; i++)
@@ -94,7 +94,7 @@ int main (int argc, char *const argv[]) {
   
   ci0.resize(p);
   {
-		std::istringstream is("0.0, 0.0, -2.0 ");
+		std::istringstream is("0.0,-2.0,  0.0 ");
 
 		for (int j = 0; j < p; j++)
 			is >> ci0[j] >> ch;

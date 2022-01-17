@@ -2162,12 +2162,6 @@ Vector<T> backward_elimination(const Matrix<T>& U, const Vector<T> y)
   return x;
 }
 
-/* Setting default linear systems machinery */
-
-#define det lu_det
-#define inverse lu_inverse
-#define solve lu_solve
-
 /* Random */
 
 template <typename T>

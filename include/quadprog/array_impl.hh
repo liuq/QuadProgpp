@@ -138,6 +138,10 @@ namespace quadprog
 
         inline constexpr size_t nrows() const { return rows_; }
         inline constexpr size_t ncols() const { return cols_; }
+
+        constexpr bool is_triangular() const { return false; }
+        constexpr bool is_lower_triangular() const { return false; }   
+        constexpr bool is_upper_triangular() const { return false; }
     };
 
     // Forward declarations
@@ -190,6 +194,13 @@ namespace quadprog
             return (*data_)[i * (i + 1) / 2 + j];
         }
 
+        constexpr bool is_triangular() const { return true; }
+        constexpr bool is_lower_triangular() const { return true; } 
+        constexpr bool is_upper_triangular() const { return false; }
+
+    protected:
+        friend class UpperTriangularMatrix<T>;
+
         // Access to shared data for creating views
         std::shared_ptr<std::vector<T>> data_ptr() const { return data_; }
     };
@@ -231,6 +242,15 @@ namespace quadprog
 #endif
             return (*data_)[j * (j + 1) / 2 + i];
         }
+
+        constexpr bool is_triangular() const { return true; }
+        constexpr bool is_lower_triangular() const { return false; }   
+        constexpr bool is_upper_triangular() const { return true; }
+     
+
+    protected:
+
+        friend class LowerTriangularMatrix<T>;
 
         // Access to shared data for creating views
         std::shared_ptr<std::vector<T>> data_ptr() const { return data_; }

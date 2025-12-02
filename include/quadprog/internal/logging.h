@@ -76,11 +76,25 @@ std::string format_matrix(const Matrix &m, int precision = 4,
         oss << ", showing " << rows_to_show << "x" << cols_to_show;
     }
     oss << "]\n";
-
+    
     for (size_t i = 0; i < rows_to_show; ++i)
     {
+        size_t start_col, end_col;
+        if (m.is_upper_triangular()) {
+            start_col = i;
+            end_col = std::min(cols_to_show, m.ncols());
+        }
+        else if (m.is_lower_triangular()) {
+            start_col = 0;
+            end_col = std::min(cols_to_show, i + 1);
+        }
+        else
+        {
+            start_col = 0;
+            end_col = std::min(cols_to_show, m.ncols());
+        } 
         oss << "  [";
-        for (size_t j = 0; j < cols_to_show; ++j)
+        for (size_t j = start_col; j < end_col; ++j)
         {
             if (j > 0)
                 oss << ", ";

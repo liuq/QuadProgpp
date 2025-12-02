@@ -1,0 +1,16 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find dependencies based on configuration
+if(@QUADPROGPP_HAS_EIGEN@)
+    find_dependency(Eigen3 3.3)
+endif()
+
+if(@QUADPROGPP_HAS_ARMADILLO@)
+    find_dependency(Armadillo)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/QuadProgppTargets.cmake")
+
+check_required_components(QuadProgpp)

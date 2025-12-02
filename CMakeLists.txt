@@ -1,9 +1,183 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 
-project(QuadProg++ CXX)
+project(QuadProgpp 
+    VERSION 2.0.0
+    DESCRIPTION "Modern C++ Quadratic Programming Solver (Goldfarb-Idnani + Boland extension)"
+    LANGUAGES CXX
+)
 
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default Release)" FORCE)
+# C++ Standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Options
+option(QUADPROGPP_USE_EIGEN "Use Eigen for matrix operations" OFF)
+option(QUADPROGPP_USE_ARMADILLO "Use Armadillo for matrix operations" OFF)
+option(QUADPROGPP_BUILD_TESTS "Build test suite" ON)
+option(QUADPROGPP_BUILD_EXAMPLES "Build examples" ON)
+option(QUADPROGPP_ENABLE_SEMIDEFINITE "Enable extension for semi-definite problems" OFF)
+option(QUADPROGPP_USE_SPDLOG "Use spdlog for logging" ON)
+
+# Library type option
+option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+
+include(FetchContent)
+
+# Configure matrix backend
+set(QUADPROGPP_MATRIX_BACKEND "builtin" CACHE STRING "Matrix backend to use")
+set_property(CACHE QUADPROGPP_MATRIX_BACKEND PROPERTY STRINGS "builtin" "eigen" "armadillo")
+
+# Handle matrix backend selection
+if(QUADPROGPP_USE_EIGEN OR QUADPROGPP_MATRIX_BACKEND STREQUAL "eigen")
+    find_package(Eigen3 3.3 QUIET)
+    if(NOT Eigen3_FOUND)
+        message(STATUS "Eigen3 not found locally, fetching from GitHub...")
+        FetchContent_Declare(
+            Eigen
+            GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+            GIT_TAG 3.4.0
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_MakeAvailable(Eigen)
+    endif()
+    set(QUADPROGPP_HAS_EIGEN TRUE)
+    set(QUADPROGPP_MATRIX_BACKEND "eigen")
+elseif(QUADPROGPP_USE_ARMADILLO OR QUADPROGPP_MATRIX_BACKEND STREQUAL "armadillo")
+    find_package(Armadillo QUIET)
+    if(Armadillo_FOUND)
+        set(QUADPROGPP_HAS_ARMADILLO TRUE)
+        set(QUADPROGPP_MATRIX_BACKEND "armadillo")
+    else()
+        message(WARNING "Armadillo requested but not found, falling back to builtin")
+        set(QUADPROGPP_MATRIX_BACKEND "builtin")
+    endif()
+else()
+    set(QUADPROGPP_MATRIX_BACKEND "builtin")
 endif()
 
-add_subdirectory(src)
+message(STATUS "QuadProgpp matrix backend: ${QUADPROGPP_MATRIX_BACKEND}")
+
+# Configure header
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/quadprog/config.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/include/quadprog/config.h
+)
+
+# Main library
+add_library(quadprogpp)
+add_library(QuadProg::quadprogpp ALIAS quadprogpp)
+
+target_sources(quadprogpp
+    PRIVATE
+        src/quadprog.cc
+        src/array_impl.cc
+)
+
+target_include_directories(quadprogpp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Link matrix backend
+if(QUADPROGPP_HAS_EIGEN)
+    target_link_libraries(quadprogpp PUBLIC Eigen3::Eigen)
+    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_USE_EIGEN)
+elseif(QUADPROGPP_HAS_ARMADILLO)
+    target_link_libraries(quadprogpp PUBLIC ${ARMADILLO_LIBRARIES})
+    target_include_directories(quadprogpp PUBLIC ${ARMADILLO_INCLUDE_DIRS})
+    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_USE_ARMADILLO)
+endif()
+
+# Boland extension
+if(QUADPROGPP_ENABLE_SEMIDEFINITE)
+    target_sources(quadprogpp PRIVATE src/quadprog_semidefinite.cc)
+    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_ENABLE_SEMIDEFINITE)
+endif()
+
+if(QUADPROGPP_USE_SPDLOG)
+    find_package(spdlog QUIET)
+    if(NOT spdlog_FOUND)
+        message(STATUS "spdlog not found locally, fetching from GitHub...")
+        FetchContent_Declare(
+            spdlog
+            GIT_REPOSITORY https://github.com/gabime/spdlog.git
+            GIT_TAG v1.16.0
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_MakeAvailable(spdlog)
+    endif()
+#    target_compile_definitions(quadprogpp PRIVATE QUADPROGPP_USE_SPDLOG)
+    target_link_libraries(quadprogpp PRIVATE spdlog::spdlog)
+endif()
+
+# Compiler warnings
+if(MSVC)
+    target_compile_options(quadprogpp PRIVATE /W4 /WX-)
+else()
+    target_compile_options(quadprogpp PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Examples
+if(QUADPROGPP_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
+# Tests
+if(QUADPROGPP_BUILD_TESTS)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt)
+        enable_testing()
+        add_subdirectory(tests)
+    else()
+        message(STATUS "Tests directory not yet implemented, skipping")
+    endif()
+endif()
+
+# Installation
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+install(TARGETS quadprogpp
+    EXPORT QuadProgppTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/quadprog/config.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/quadprog
+)
+
+# Export targets
+install(EXPORT QuadProgppTargets
+    FILE QuadProgppTargets.cmake
+    NAMESPACE QuadProg::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/QuadProgpp
+)
+
+# Package config
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/QuadProgppConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/QuadProgppConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/QuadProgpp
+)
+
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/QuadProgppConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/QuadProgppConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/QuadProgppConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/QuadProgpp
+)

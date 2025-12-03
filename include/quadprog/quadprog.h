@@ -6,8 +6,18 @@
 #include <memory>
 #include <cmath>
 #include <concepts>
-#include <quadprog/array_impl.hh>
+#include <limits>
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
+#include <quadprog/array_impl.hh>
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+// Eigen backend
+#include <Eigen/Dense>
+template <typename T>
+    using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+template <typename T>
+    using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+#endif
 namespace quadprog
 {
     // ============================================================================

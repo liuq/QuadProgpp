@@ -6,12 +6,6 @@
 #define QUADPROGPP_VERSION_PATCH @PROJECT_VERSION_PATCH@
 #define QUADPROGPP_VERSION "@PROJECT_VERSION@"
 
-// Matrix backend configuration
-#cmakedefine QUADPROGPP_USE_EIGEN
-#cmakedefine QUADPROGPP_USE_ARMADILLO
-#cmakedefine QUADPROGPP_USE_SPDLOG
-//#cmakedefine QUADPROGPP_ENABLE_SEMIDEFINITE
-
 // Determine which backend is active
 #if defined(QUADPROGPP_USE_EIGEN)
     #define QUADPROGPP_MATRIX_BACKEND_EIGEN

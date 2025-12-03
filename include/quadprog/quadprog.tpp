@@ -39,9 +39,9 @@ namespace quadprog
     SolverResult<T> result;
 
     // Validate inputs
-    const size_t n = G.rows();
-    const size_t p = CE.cols();
-    const size_t m = CI.cols();
+    const auto n = G.rows();
+    const auto p = CE.cols();
+    const auto m = CI.cols();
 
     if (G.cols() != n)
     {
@@ -62,10 +62,10 @@ namespace quadprog
       return result;
     }
 
-    if (CE.nrows() != n)
+    if (CE.rows() != n)
     {
       if (!options.graceful_exit)
-        throw std::invalid_argument("The matrix CE is incompatible (incorrect number of rows " + std::to_string(CE.nrows()) + " , expecting " + std::to_string(n) + ")");
+        throw std::invalid_argument("The matrix CE is incompatible (incorrect number of rows " + std::to_string(CE.rows()) + " , expecting " + std::to_string(n) + ")");
       result.status = SolverStatus::NUMERICAL_ERROR;
       result.message = "CE matrix row size mismatch";
       return result;
@@ -80,10 +80,10 @@ namespace quadprog
       return result;
     }
 
-    if (CI.nrows() != n)
+    if (CI.rows() != n)
     {
       if (!options.graceful_exit)
-        throw std::invalid_argument("The matrix CI is incompatible (incorrect number of rows " + std::to_string(CI.nrows()) + " , expecting " + std::to_string(n) + ")");
+        throw std::invalid_argument("The matrix CI is incompatible (incorrect number of rows " + std::to_string(CI.rows()) + " , expecting " + std::to_string(n) + ")");
       result.status = SolverStatus::NUMERICAL_ERROR;
       result.message = "CI matrix row size mismatch";
       return result;
@@ -113,12 +113,20 @@ namespace quadprog
     int ip;            // this is the index of the constraint to be added to the active set
     Matrix<T> R(n, n), J(n, n);
     Vector<T> s(m + p), z(n), r(m + p), d(n), np(n), u(m + p), x(n), x_old(n), u_old(m + p);
-    T f_value, psi, c1, c2, sum, ss, R_norm;
+    T f_value, psi, c1, c2, ss, R_norm;
     constexpr T inf = std::numeric_limits<double>::infinity();
     T t, t1, t2; /* t is the step lenght, which is the minimum of the partial step length t1 and the full step length t2 */
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)    
     Vector<int> A(m + p, 0), A_old(m + p, 0), iai(m + p, 0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    Vector<int> A = Vector<int>::Zero(m + p), A_old = Vector<int>::Zero(m + p), iai = Vector<int>::Zero(m + p);
+#endif
     size_t iq, iter = 0;
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     Vector<bool> iaexcl(m + p, false);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    Vector<bool> iaexcl = Vector<bool>::Constant(m + p, false);
+#endif
 
     QUADPROG_TRACE("Starting solve_quadprog");
     QUADPROG_TRACE_MATRIX("G", G);
@@ -130,16 +138,30 @@ namespace quadprog
 
     /* Preprocessing phase */
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     /* compute the trace of the original matrix G */
     c1 = 0.0;
     for (size_t i = 0; i < n; i++)
       c1 += G(i, i);
-    /* decompose the matrix G in the form L^T L */
-    LowerTriangularMatrix<double> G_ = cholesky_decompose(G, options.tolerance);
+    /* decompose the matrix G in the form L^T L through Cholesky decomposition */
+    auto G_ = cholesky_decompose(G, options.tolerance);
     QUADPROG_TRACE_MATRIX("L from Cholesky", G_);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    /* compute the trace of the original matrix G */
+    c1 = G.trace();
+    Eigen::LLT<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>> lltOfG(G);
+    if (lltOfG.info() != Eigen::Success)
+    {
+      QUADPROG_TRACE_MATRIX("G", G);
+      QUADPROG_TRACE("Matrix is not positive definite");
+      throw std::invalid_argument("Matrix G is not positive definite");
+    }
+    QUADPROG_TRACE_MATRIX("L from Choloesky", lltOfG.matrixL());
+#endif
     R_norm = 1.0; /* this variable will hold the norm of the matrix R */
     /* compute the inverse of the factorized matrix G^-1, this is the initial value for H */
     c2 = 0.0;
+#ifdef QUADPROGPP_MATRIX_BACKEND_BUILTIN
     for (size_t i = 0; i < n; i++)
     {
       // Set d to the i-th unit vector
@@ -151,6 +173,11 @@ namespace quadprog
       // Reset d
       d(i) = 0.0;
     }
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    //Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> G_inv(n, n);
+    J = lltOfG.solve(Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>::Identity(n, n));
+    c2 = J.trace();
+#endif
     QUADPROG_TRACE_MATRIX("G inverse", J);
     /* c1 * c2 is an estimate for cond(G) */
 
@@ -159,21 +186,32 @@ namespace quadprog
      * this is a feasible point in the dual space
      * x = G^-1 * g0
      */
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     cholesky_solve(G_, x, g0);
     // Negate x
     for (size_t i = 0; i < n; i++)
       x(i) = -x(i);
     /* and compute the current solution value */
     f_value = 0.5 * scalar_product<double>(g0, x);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    x = -J * g0;
+    /* and compute the current solution value */
+    f_value = 0.5 * g0.dot(x);
+#endif
     QUADPROG_TRACE("Unconstrained solution: {}", f_value);
     QUADPROG_TRACE_VECTOR("x", x);
 
     /* Add equality constraints to the working set A */
     iq = 0;
-    for (size_t i = 0; i < p; i++)
+    for (size_t i = 0; i < static_cast<size_t>(p); i++)
     {
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)      
+      /* compute np = CE[:,i] */
       for (size_t j = 0; j < n; j++)
         np(j) = CE(j, i);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+      np = CE.col(i);
+#endif
       compute_d(d, J, np);
       update_z(z, J, d, iq);
       update_r(R, r, d, iq);
@@ -185,9 +223,9 @@ namespace quadprog
 
       /* compute full step length t2: i.e., the minimum step in primal space s.t. the contraint becomes feasible */
       t2 = 0.0;
-      if (std::fabs(scalar_product<double>(z, z)) > options.tolerance) // i.e. z != 0
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)      
+      if (std::abs(scalar_product<double>(z, z)) > options.tolerance) // i.e. z != 0
         t2 = (-scalar_product<double>(np, x) - ce0(i)) / scalar_product<double>(z, np);
-
       /* set x = x + t2 * z */
       for (size_t k = 0; k < n; k++)
         x(k) += t2 * z(k);
@@ -196,9 +234,20 @@ namespace quadprog
       u(iq) = t2;
       for (size_t k = 0; k < iq; k++)
         u(k) -= t2 * r(k);
-
       /* compute the new solution value */
       f_value += 0.5 * (t2 * t2) * scalar_product<double>(z, np);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+      T z_np = z.dot(np);
+      if (std::abs(z_np) > options.tolerance) // i.e. z != 0
+        t2 = (-np.dot(x) - ce0(i)) / z_np;
+      /* set x = x + t2 * z */
+      x += t2 * z;  
+      /* set u = u+ */
+      u(iq) = t2;
+      u.head(iq) -= t2 * r.head(iq);
+      /* compute the new solution value */
+      f_value += 0.5 * (t2 * t2) * z_np;
+#endif
       A(iq) = -i - 1;
 
       if (!add_constraint(R, J, d, iq, R_norm))
@@ -215,7 +264,7 @@ namespace quadprog
     }
 
     /* set iai = K \ A */
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = 0; i < static_cast<size_t>(m); i++)
       iai(i) = i;
 
   l1:
@@ -229,6 +278,7 @@ namespace quadprog
       iai(ip) = -1;
     }
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     /* compute s[x] = ci^T * x + ci0 for all elements of K \ A */
     ss = 0.0;
     psi = 0.0; /* the sum of all infeasibilities */
@@ -243,10 +293,22 @@ namespace quadprog
       s(i) = sum;
       psi += std::min(0.0, sum);
     }
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    /* compute s[x] = ci^T * x + ci0 for all elements of K \ A */
+    s.head(m) = CI.transpose() * x + ci0;
+    psi = 0.0; /* the sum of all infeasibilities */
+    ip = 0;    /* ip will be the index of the chosen violated constraint */
+    for (Eigen::Index i{0}; i < m; i++)
+    {
+      iaexcl(i) = true;
+      psi += std::min(0.0, s(i));
+    }
+#endif
+    QUADPROG_TRACE("Total infeasibility psi: {}", psi);    
     QUADPROG_TRACE_VECTOR("s", s);
 
     // TODO: check tolerance scaling
-    if (fabs(psi) <= m * options.tolerance * c1 * c2)
+    if (std::abs(psi) <= m * options.tolerance * c1 * c2)
     {
       /* numerically there are not infeasibilities anymore */
       result.status = SolverStatus::SUCCESS;
@@ -258,18 +320,24 @@ namespace quadprog
       return result;
     }
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)    
     /* save old values for u and A */
     for (size_t i = 0; i < iq; i++)
     {
       u_old(i) = u(i);
       A_old(i) = A(i);
-    }
+    }    
     /* and for x */
     for (size_t i = 0; i < n; i++)
       x_old(i) = x(i);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    u_old.head(iq) = u.head(iq);
+    A_old.head(iq) = A.head(iq);
+    x_old = x;
+#endif
 
   l2: /* Step 2: check for feasibility and determine a new S-pair */
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = 0; i < static_cast<size_t>(m); i++)
     {
       if (s(i) < ss && iai(i) != -1 && iaexcl(i))
       {
@@ -288,10 +356,13 @@ namespace quadprog
       QUADPROG_TRACE("Optimization successful in {} iterations, objective value {}", iter, f_value);
       return result;
     }
-
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     /* set np = n[ip] */
     for (size_t i = 0; i < n; i++)
       np(i) = CI(i, ip);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    np = CI.col(ip);
+#endif
     /* set u = [u 0]^T */
     u(iq) = 0.0;
     /* add ip to the active set A */
@@ -329,7 +400,8 @@ namespace quadprog
       }
     }
     /* Compute t2: full step length (minimum step in primal space such that the constraint ip becomes feasible */
-    if (fabs(scalar_product<double>(z, z)) > std::numeric_limits<double>::epsilon()) // i.e. z != 0
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)   
+    if (std::abs(scalar_product<double>(z, z)) > std::numeric_limits<double>::epsilon()) // i.e. z != 0
     {
       t2 = -s(ip) / scalar_product<double>(z, np);
       if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
@@ -337,6 +409,17 @@ namespace quadprog
     }
     else
       t2 = inf; /* +inf */
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    T z_np = z.dot(np);
+    if (std::abs(z_np) > std::numeric_limits<double>::epsilon()) // i.e. z != 0
+    {
+      t2 = -s(ip) / z_np;
+      if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
+        t2 = inf;
+    }
+    else
+      t2 = inf; /* +inf */
+#endif
 
     /* the step is chosen as the minimum of t1 and t2 */
     t = std::min(t1, t2);
@@ -356,10 +439,15 @@ namespace quadprog
     /* case (ii): step in dual space */
     if (t2 >= inf)
     {
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)      
       /* set u = u +  t * [-r 1] and drop constraint l from the active set A */
       for (size_t k = 0; k < iq; k++)
         u(k) -= t * r(k);
       u(iq) += t;
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+      u.head(iq) -= t * r.head(iq);
+      u(iq) += t;
+#endif      
       iai(l) = l;
       delete_constraint(R, J, A, u, n, p, iq, l);
       // FIXME: check the logging
@@ -374,14 +462,25 @@ namespace quadprog
 
     /* case (iii): step in primal and dual space */
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     /* set x = x + t * z */
     for (size_t k = 0; k < n; k++)
       x(k) += t * z(k);
     /* update the solution value */
     f_value += t * scalar_product<double>(z, np) * (0.5 * t + u(iq));
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    /* set x = x + t * z */
+    x += t * z;
+    /* update the solution value */
+    f_value += t * z.dot(np) * (0.5 * t + u(iq));
+#endif    
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     /* u = u + t * [-r 1] */
     for (size_t k = 0; k < iq; k++)
       u(k) -= t * r(k);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    u.head(iq) -= t * r.head(iq);
+#endif
     u(iq) += t;
     QUADPROG_TRACE(" in both spaces: {}", f_value);
     QUADPROG_TRACE_VECTOR("x", x);
@@ -389,7 +488,7 @@ namespace quadprog
     QUADPROG_TRACE_VECTOR("r", r, iq + 1);
     QUADPROG_TRACE_VECTOR("A", A, iq + 1);
 
-    if (fabs(t - t2) < std::numeric_limits<double>::epsilon())
+    if (std::abs(t - t2) < std::numeric_limits<double>::epsilon())
     {
       QUADPROG_TRACE("Full step has taken {}", t);
       QUADPROG_TRACE_VECTOR("x", x);
@@ -402,6 +501,8 @@ namespace quadprog
         QUADPROG_TRACE_MATRIX("R", R);
         QUADPROG_TRACE_VECTOR("A", A, iq);
         QUADPROG_TRACE_VECTOR("iai", iai);
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
+        /* restore old values for u, A and x */        
         for (size_t i = 0; i < m; i++)
           iai(i) = i;
         for (size_t i = p; i < iq; i++)
@@ -412,6 +513,14 @@ namespace quadprog
         }
         for (size_t i = 0; i < n; i++)
           x(i) = x_old(i);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)        
+        iai.head(m).setLinSpaced(m, 0, m - 1);
+        A.head(iq).tail(iq - p) = A_old.head(iq).tail(iq - p);
+        u.head(iq) = u_old.head(iq);
+        for (size_t i = p; i < iq; i++)
+          iai(A(i)) = -1;
+        x = x_old;
+#endif          
         goto l2; /* go to step 2 */
       }
       else
@@ -432,10 +541,14 @@ namespace quadprog
     QUADPROG_TRACE_VECTOR("A", A, iq);
 
     /* update s[ip] = CI * x + ci0 */
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)    
     sum = 0.0;
     for (size_t k = 0; k < n; k++)
       sum += CI(k, ip) * x(k);
     s(ip) = sum + ci0(ip);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)    
+    s(ip) = CI.col(ip).dot(x) + ci0(ip);
+#endif
 
     QUADPROG_TRACE_VECTOR("s", s, m);
 
@@ -535,7 +648,7 @@ namespace quadprog
       cc = d(j - 1);
       ss = d(j);
       h = distance(cc, ss);
-      if (std::fabs(h) < std::numeric_limits<double>::epsilon()) // h == 0
+      if (std::abs(h) < std::numeric_limits<double>::epsilon()) // h == 0
         continue;
       d(j) = 0.0;
       ss = ss / h;
@@ -568,12 +681,12 @@ namespace quadprog
     QUADPROG_TRACE_MATRIX("J", J);
     QUADPROG_TRACE_VECTOR("d", d, iq);
 
-    if (std::fabs(d(iq - 1)) <= std::numeric_limits<double>::epsilon() * R_norm)
+    if (std::abs(d(iq - 1)) <= std::numeric_limits<double>::epsilon() * R_norm)
     {
       // degenerate problem
       return false;
     }
-    R_norm = std::max<T>(R_norm, std::fabs(d(iq - 1)));
+    R_norm = std::max<T>(R_norm, std::abs(d(iq - 1)));
     return true;
   }
 
@@ -626,7 +739,7 @@ namespace quadprog
       cc = R(j, j);
       ss = R(j + 1, j);
       h = distance(cc, ss);
-      if (std::fabs(h) < std::numeric_limits<T>::epsilon()) // h == 0
+      if (std::abs(h) < std::numeric_limits<T>::epsilon()) // h == 0
         continue;
       cc = cc / h;
       ss = ss / h;
@@ -662,8 +775,8 @@ namespace quadprog
   inline double distance(T a, T b)
   {
     T a1, b1, t;
-    a1 = std::fabs(a);
-    b1 = std::fabs(b);
+    a1 = std::abs(a);
+    b1 = std::abs(b);
     if (a1 > b1)
     {
       t = (b1 / a1);

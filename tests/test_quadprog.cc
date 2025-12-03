@@ -15,8 +15,13 @@ TEST_CASE("Simple QP problem", "[quadprog]") {
     Matrix<double> G(2, 2);
     G(0, 0) = 2.0; G(0, 1) = 0.0;
     G(1, 0) = 0.0; G(1, 1) = 2.0;
-    
+
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     Vector<double> g0 = {-2.0, -5.0};
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    Vector<double> g0(2);
+    g0 << -2.0, -5.0;
+#endif
     
     Matrix<double> CE(2, 0);  // No equality constraints
     Vector<double> ce0(0);
@@ -24,7 +29,7 @@ TEST_CASE("Simple QP problem", "[quadprog]") {
     Matrix<double> CI(2, 0);  // No inequality constraints
     Vector<double> ci0(0);
     
-    auto result = solve_quadprog(G, g0, CE, ce0, CI, ci0);
+    auto result = solve_quadprog<double>(G, g0, CE, ce0, CI, ci0);
 
     REQUIRE(result.is_success());
     auto x = result.solution;
@@ -41,19 +46,26 @@ TEST_CASE("QP with equality constraint", "[quadprog]") {
     Matrix<double> G(2, 2);
     G(0, 0) = 2.0; G(0, 1) = 0.0;
     G(1, 0) = 0.0; G(1, 1) = 2.0;
-    
+
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     Vector<double> g0 = {0.0, 0.0};
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    auto g0 = Vector<double>::Constant(2, 0.0);
+#endif
     
     Matrix<double> CE(2, 1);
     CE(0, 0) = 1.0;
     CE(1, 0) = 1.0;
-    
+
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     Vector<double> ce0 = {-1.0};
-    
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    auto ce0 = Vector<double>::Constant(1, -1.0);
+#endif    
     Matrix<double> CI(2, 0);
     Vector<double> ci0(0);
         
-    auto result = solve_quadprog(G, g0, CE, ce0, CI, ci0);
+    auto result = solve_quadprog<double>(G, g0, CE, ce0, CI, ci0);
 
     auto x = result.solution;
     REQUIRE(result.is_success());
@@ -65,7 +77,12 @@ TEST_CASE("QP with equality constraint", "[quadprog]") {
 
 TEST_CASE("Size mismatch throws exception", "[quadprog][error]") {
     Matrix<double> G(2, 2);
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)    
     Vector<double> g0 = {1.0, 2.0, 3.0};  // Wrong size!
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    Vector<double> g0(3);
+    g0 << 1.0, 2.0, 3.0;  // Wrong size!
+#endif
     
     Matrix<double> CE(2, 0);
     Vector<double> ce0(0);
@@ -74,7 +91,7 @@ TEST_CASE("Size mismatch throws exception", "[quadprog][error]") {
     Vector<double> x(2);
     
     REQUIRE_THROWS_AS(
-        solve_quadprog(G, g0, CE, ce0, CI, ci0),
+        solve_quadprog<double>(G, g0, CE, ce0, CI, ci0),
         std::invalid_argument
     );
 }

@@ -2,6 +2,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <quadprog/quadprog.h>
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
+
 using namespace quadprog;
 using Catch::Matchers::WithinAbs;
 
@@ -48,3 +50,5 @@ TEST_CASE("Vector operations", "[vector]") {
         REQUIRE_THAT(v(2), WithinAbs(2.5, 1e-10));
     }
 }
+
+#endif  // QUADPROGPP_MATRIX_BACKEND_BUILTIN

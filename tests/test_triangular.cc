@@ -2,6 +2,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <quadprog/quadprog.h>
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
+
 using namespace quadprog;
 using Catch::Matchers::WithinAbs;
 
@@ -64,3 +66,5 @@ TEST_CASE("Transpose creates zero-copy view", "[triangular][transpose]") {
         REQUIRE_THAT(L(2, 1), WithinAbs(42.0, 1e-10));
     }
 }
+
+#endif  // QUADPROGPP_MATRIX_BACKEND_BUILTIN

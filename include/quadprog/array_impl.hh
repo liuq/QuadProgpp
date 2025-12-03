@@ -1,54 +1,21 @@
 #pragma once
 
 #include <quadprog/config.h>
+#include <quadprog/internal/logging.h>
 #include <vector>
 #include <stdexcept>
 #include <cmath>
 #include <concepts>
 #include <memory>
 
-// Matrix backend includes
-#ifdef QUADPROGPP_MATRIX_BACKEND_EIGEN
-#include <Eigen/Dense>
-#elif defined(QUADPROGPP_MATRIX_BACKEND_ARMADILLO)
-#include <armadillo>
-#endif
+// This file contains the implementation of built-in matrix operations
+// when not using Eigen or Armadillo
 
 namespace quadprog
 {
     // ============================================================================
-    // Matrix/Vector type abstractions
+    // Matrix/Vector type builtin implementations 
     // ============================================================================
-
-#ifdef QUADPROGPP_MATRIX_BACKEND_EIGEN
-    using Matrix = Eigen::MatrixXd;
-    using Vector = Eigen::VectorXd;
-
-    inline Matrix make_matrix(size_t rows, size_t cols)
-    {
-        return Matrix::Zero(rows, cols);
-    }
-
-    inline Vector make_vector(size_t size)
-    {
-        return Vector::Zero(size);
-    }
-
-#elif defined(QUADPROGPP_MATRIX_BACKEND_ARMADILLO)
-    using Matrix = arma::mat;
-    using Vector = arma::vec;
-
-    inline Matrix make_matrix(size_t rows, size_t cols)
-    {
-        return arma::mat(rows, cols, arma::fill::zeros);
-    }
-
-    inline Vector make_vector(size_t size)
-    {
-        return arma::vec(size, arma::fill::zeros);
-    }
-
-#else                          // BUILTIN
     template <typename T>
     class MatrixImpl
     {
@@ -133,8 +100,8 @@ namespace quadprog
             return MatrixImpl<T>(rows, cols, T(0));
         }
 
-        inline constexpr size_t nrows() const { return rows_; }
-        inline constexpr size_t ncols() const { return cols_; }
+        inline constexpr size_t rows() const { return rows_; }
+        inline constexpr size_t cols() const { return cols_; }
 
         constexpr bool is_triangular() const { return false; }
         constexpr bool is_lower_triangular() const { return false; }
@@ -248,7 +215,7 @@ namespace quadprog
 
         const T &operator()(size_t i, size_t j) const
         {
-#ifndef NDEBUG
+#ifndef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (i > j)
                 throw std::out_of_range("Accessing lower part of UpperTriangularMatrix");
 #endif
@@ -295,11 +262,7 @@ namespace quadprog
         // Use the proper reference type from vector
         typename std::vector<T>::reference operator()(size_t i)
         {
-#ifndef NDEBUG
-            if (i >= this->size())
-                throw std::out_of_range("Vector index out of range");
-#endif
-#ifndef NDEBUG
+#ifndef QUADPROGPP_BOUNDS_CHECK 
             if (i >= this->size())
                 throw std::out_of_range("Vector index out of range");
 #endif
@@ -308,11 +271,7 @@ namespace quadprog
 
         typename std::vector<T>::const_reference operator()(size_t i) const
         {
-#ifndef NDEBUG
-            if (i >= this->size())
-                throw std::out_of_range("Vector index out of range");
-#endif
-#ifndef NDEBUG
+#ifndef QUADPROGPP_BOUNDS_CHECK
             if (i >= this->size())
                 throw std::out_of_range("Vector index out of range");
 #endif
@@ -324,7 +283,7 @@ namespace quadprog
             return VectorImpl<T>(size, T(0));
         }
 
-        friend double scalar_product(const VectorImpl<T> &x, const VectorImpl<T> &y);
+        friend T scalar_product(const VectorImpl<T> &x, const VectorImpl<T> &y);
 
         // Disable operator[] to avoid confusion
         T operator[](size_t i) = delete;
@@ -332,7 +291,7 @@ namespace quadprog
     };
 
     template <typename T>
-    double scalar_product(const VectorImpl<T> &x, const VectorImpl<T> &y)
+    T scalar_product(const VectorImpl<T> &x, const VectorImpl<T> &y)
     {
         if (x.size() != y.size())
         {
@@ -392,9 +351,99 @@ namespace quadprog
     template <std::floating_point T>
     void cholesky_solve(const LowerTriangularMatrix<T> &L, Vector<T> &x, const Vector<T> &b);
 
+    // Built-in matrix operations are implemented inline in the header
+    // for now. Future implementations can be added here.
+    template <std::floating_point T>
+    LowerTriangularMatrix<T> cholesky_decompose(const Matrix<T> &G, T tolerance)
+    {
+        const size_t n = G.rows();
+        LowerTriangularMatrix<T> L(n, 0.0);
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            for (size_t j = 0; j <= i; ++j)
+            {
+                T sum = G(i, j);
+
+                for (size_t k = 0; k < j; ++k)
+                {
+                    sum -= L(i, k) * L(j, k);
+                }
+
+                if (i == j)
+                {
+                    if (sum <= tolerance)
+                    {
+                        QUADPROG_TRACE_MATRIX("G", G);
+                        QUADPROG_TRACE("Matrix is not positive definite, sum at index {} is {}", i, sum);
+                        throw std::invalid_argument("Matrix G is not positive definite");
+                    }
+                    L(i, j) = std::sqrt(sum);
+                }
+                else
+                {
+                    L(i, j) = sum / L(j, j);
+                }
+            }
+        }
+
+        return L;
+    }
+
+    // Forward elimination: solves Ly = b where L is lower triangular
+    template <std::floating_point T>
+    void forward_elimination(const LowerTriangularMatrix<T> &L, Vector<T> &y, const Vector<T> &b)
+    {
+        size_t n = L.nrows();
+        y(0) = b(0) / L(0, 0);
+        for (size_t i = 1; i < n; i++)
+        {
+            y(i) = b(i);
+            for (size_t j = 0; j < i; j++)
+                y(i) -= L(i, j) * y(j);
+            y(i) /= L(i, i);
+        }
+    }
+
+    // Backward substitution: solves Ux = b where U is upper triangular
+    template <std::floating_point T>
+    void backward_substitution(const UpperTriangularMatrix<T> &U, Vector<T> &x, const Vector<T> &b)
+    {
+        size_t n = U.nrows();
+        x(n - 1) = b(n - 1) / U(n - 1, n - 1);
+        for (int i = n - 2; i >= 0; i--) // Note: going backwards
+        {
+            x(i) = b(i);
+            for (size_t j = i + 1; j < n; j++) // Note: j > i (upper part)
+                x(i) -= U(i, j) * x(j);
+            x(i) /= U(i, i);
+        }
+    }
+
+    // Solve L * L^T * x = b
+    template <std::floating_point T>
+    void cholesky_solve(const LowerTriangularMatrix<T> &L, Vector<T> &x, const Vector<T> &b)
+    {
+        size_t n = L.nrows(); // Use size_t instead of int for consistency
+#ifndef QUADPROGPP_NO_BOUNDS_CHECK
+        if (b.size() != n || x.size() != n)
+        {
+            throw std::invalid_argument("Dimension mismatch in cholesky_solve");
+        }
 #endif
+        Vector<T> y(n);
+
+        /* Solve L * y = b */
+        forward_elimination(L, y, b);
+
+        QUADPROG_TRACE_VECTOR("y after forward elimination", y);
+
+        /* Solve L^T * x = y */
+        backward_substitution(transpose(L), x, y);
+        QUADPROG_TRACE_VECTOR("x after backward substitution", x);
+    }
 
 } // namespace quadprog
 
-// include implementation
-#include <quadprog/array_impl.tpp>
+
+

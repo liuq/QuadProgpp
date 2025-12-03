@@ -3,6 +3,8 @@
 #include <quadprog/quadprog.h>
 #include <cmath>
 
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
+
 using namespace quadprog;
 using Catch::Matchers::WithinAbs;
 
@@ -89,3 +91,5 @@ TEST_CASE("Cholesky solve", "[solvers]") {
         REQUIRE_THAT(x_solved(i), WithinAbs(x_true(i), 1e-8));
     }
 }
+
+#endif // defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)

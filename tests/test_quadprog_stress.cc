@@ -39,26 +39,38 @@ Matrix<double> random_spd_matrix(size_t n, std::mt19937& gen) {
 bool verify_solution(const Matrix<double>& /* G */, const Vector<double>& /* g0 */,
                      const Matrix<double>& CE, const Vector<double>& ce0,
                      const Matrix<double>& CI, const Vector<double>& ci0,
-                     const Vector<double>& x, double tol = 1e-6) {
-    size_t n = x.size();
-    
+                     const Vector<double>& x, double tol = 1e-6) {    
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     // Check equality constraints: CE^T * x + ce0 = 0
     for (size_t i = 0; i < CE.cols(); i++) {
         double constraint = ce0(i);
-        for (size_t j = 0; j < n; j++) {
+        for (size_t j = 0; j < x.size(); j++) {
             constraint += CE(j, i) * x(j);
         }
         if (std::abs(constraint) > tol) return false;
     }
-    
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    for (Eigen::Index i{0}; i < CE.cols(); i++) {
+        double constraint = ce0(i) + CE.col(i).dot(x);
+        if (std::abs(constraint) > tol) return false;
+    }
+#endif
+
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
     // Check inequality constraints: CI^T * x + ci0 >= 0
     for (size_t i = 0; i < CI.cols(); i++) {
         double constraint = ci0(i);
-        for (size_t j = 0; j < n; j++) {
+        for (size_t j = 0; j < x.size(); j++) {
             constraint += CI(j, i) * x(j);
         }
         if (constraint < -tol) return false;
     }
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+    for (Eigen::Index i{0}; i < CI.cols(); i++) {
+        double constraint = ci0(i) + CI.col(i).dot(x);
+        if (constraint < -tol) return false;
+    }
+#endif
     
     return true;
 }
@@ -141,20 +153,28 @@ TEST_CASE("Ill-conditioned problems", "[quadprog][stress]") {
                 }
             }
         }
-        
+
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
         Vector<double> g0(n, -1.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto g0 = Vector<double>::Constant(n, -1.0);
+#endif
         Matrix<double> CE(n, 0);
         Vector<double> ce0(0);
         Matrix<double> CI(n, 0);
         Vector<double> ci0(0);
         
-        REQUIRE_THROWS_AS(solve_quadprog(G, g0, CE, ce0, CI, ci0), std::invalid_argument);
+        REQUIRE_THROWS_AS(solve_quadprog<double>(G, g0, CE, ce0, CI, ci0), std::invalid_argument);
     }
     
     SECTION("Nearly singular constraints") {
         const size_t n = 10;
         auto G = random_spd_matrix(n, gen);
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
         Vector<double> g0(n, 0.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto g0 = Vector<double>::Constant(n, 0.0);
+#endif
         
         // Two nearly parallel constraints
         Matrix<double> CE(n, 2);
@@ -169,7 +189,7 @@ TEST_CASE("Ill-conditioned problems", "[quadprog][stress]") {
         Matrix<double> CI(n, 0);
         Vector<double> ci0(0);
         
-        REQUIRE_THROWS_AS(solve_quadprog(G, g0, CE, ce0, CI, ci0), std::invalid_argument);    
+        REQUIRE_THROWS_AS(solve_quadprog<double>(G, g0, CE, ce0, CI, ci0), std::invalid_argument);    
     }
 }
 
@@ -234,14 +254,18 @@ TEST_CASE("Degenerate cases", "[quadprog][stress]") {
                 G(i, j) = (i == j) ? 1.0 : 0.0;
             }
         }
-        
+
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)
         Vector<double> g0(n, -1.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto g0 = Vector<double>::Constant(n, -1.0);
+#endif
         Matrix<double> CE(n, 0);
         Vector<double> ce0(0);
         Matrix<double> CI(n, 0);
         Vector<double> ci0(0);
         
-        auto result = solve_quadprog(G, g0, CE, ce0, CI, ci0);
+        auto result = solve_quadprog<double>(G, g0, CE, ce0, CI, ci0);
         
         REQUIRE(result.is_success());
         
@@ -259,8 +283,12 @@ TEST_CASE("Degenerate cases", "[quadprog][stress]") {
                 G(i, j) = (i == j) ? 2.0 : 0.0;
             }
         }
-        
+
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
         Vector<double> g0(n, 0.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto g0 = Vector<double>::Constant(n, 0.0);
+#endif
         
         // Box constraints: -1 <= x_i <= 1
         Matrix<double> CE(n, 0);
@@ -277,7 +305,7 @@ TEST_CASE("Degenerate cases", "[quadprog][stress]") {
             ci0(2*i+1) = 1.0;
         }
         
-        auto result = solve_quadprog(G, g0, CE, ce0, CI, ci0);
+        auto result = solve_quadprog<double>(G, g0, CE, ce0, CI, ci0);
         
         REQUIRE(result.is_success());
     }
@@ -401,20 +429,32 @@ TEST_CASE("Performance benchmarks", "[quadprog][benchmark][!benchmark]") {
     
     BENCHMARK("10 variables, unconstrained") {
         auto G = random_spd_matrix(10, gen);
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
         Vector<double> g0(10, -1.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto g0 = Vector<double>::Constant(10, -1.0);
+#endif
         Matrix<double> CE(10, 0);
         Vector<double> ce0(0);
         Matrix<double> CI(10, 0);
         Vector<double> ci0(0);
-        return solve_quadprog(G, g0, CE, ce0, CI, ci0);
+        return solve_quadprog<double>(G, g0, CE, ce0, CI, ci0);
     };
     
     BENCHMARK("50 variables, 10 constraints") {
         auto G = random_spd_matrix(50, gen);
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
         Vector<double> g0(50, -1.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto g0 = Vector<double>::Constant(50, -1.0);
+#endif
         
         Matrix<double> CE(50, 5);
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
         Vector<double> ce0(5, 1.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto ce0 = Vector<double>::Constant(5, 1.0);
+#endif
         for (size_t i = 0; i < 50; i++) {
             for (size_t j = 0; j < 5; j++) {
                 CE(i, j) = (i == j) ? 1.0 : 0.0;
@@ -422,14 +462,18 @@ TEST_CASE("Performance benchmarks", "[quadprog][benchmark][!benchmark]") {
         }
         
         Matrix<double> CI(50, 5);
+#if defined(QUADPROGPP_MATRIX_BACKEND_BUILTIN)        
         Vector<double> ci0(5, 1.0);
+#elif defined(QUADPROGPP_MATRIX_BACKEND_EIGEN)
+        auto ci0 = Vector<double>::Constant(5, 1.0);
+#endif
         for (size_t i = 0; i < 50; i++) {
             for (size_t j = 0; j < 5; j++) {
                 CI(i, j) = (i == j + 5) ? 1.0 : 0.0;
             }
         }
         
-        return solve_quadprog(G, g0, CE, ce0, CI, ci0);
+        return solve_quadprog<double>(G, g0, CE, ce0, CI, ci0);
     };
 }
 

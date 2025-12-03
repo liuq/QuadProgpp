@@ -110,7 +110,6 @@ namespace quadprog
     //   return result;
     // }
 
-    size_t i, j, k; /* indices */    
     int l; 
     int ip;            // this is the index of the constraint to be added to the active set
     Matrix<double> R(n, n), J(n, n);
@@ -134,7 +133,7 @@ namespace quadprog
 
     /* compute the trace of the original matrix G */
     c1 = 0.0;
-    for (i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
       c1 += G(i, i);
     /* decompose the matrix G in the form L^T L */
     LowerTriangularMatrix<double> G_ = cholesky_decompose(G, options.tolerance);
@@ -142,12 +141,12 @@ namespace quadprog
     R_norm = 1.0; /* this variable will hold the norm of the matrix R */
     /* compute the inverse of the factorized matrix G^-1, this is the initial value for H */
     c2 = 0.0;
-    for (i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
     {
       // Set d to the i-th unit vector
       d(i) = 1.0;
       forward_elimination(G_, z, d);
-      for (j = 0; j < n; j++)
+      for (size_t j = 0; j < n; j++)
         J(i, j) = z(j);
       c2 += z(i);
       // Reset d
@@ -163,7 +162,7 @@ namespace quadprog
      */
     cholesky_solve(G_, x, g0);
     // Negate x
-    for (i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
       x(i) = -x(i);
     /* and compute the current solution value */
     f_value = 0.5 * scalar_product<double>(g0, x);
@@ -172,9 +171,9 @@ namespace quadprog
 
     /* Add equality constraints to the working set A */
     iq = 0;
-    for (i = 0; i < p; i++)
+    for (size_t i = 0; i < p; i++)
     {
-      for (j = 0; j < n; j++)
+      for (size_t j = 0; j < n; j++)
         np(j) = CE(j, i);
       compute_d(d, J, np);
       update_z(z, J, d, iq);
@@ -191,12 +190,12 @@ namespace quadprog
         t2 = (-scalar_product<double>(np, x) - ce0(i)) / scalar_product<double>(z, np);
 
       /* set x = x + t2 * z */
-      for (k = 0; k < n; k++)
+      for (size_t k = 0; k < n; k++)
         x(k) += t2 * z(k);
 
       /* set u = u+ */
       u(iq) = t2;
-      for (k = 0; k < iq; k++)
+      for (size_t k = 0; k < iq; k++)
         u(k) -= t2 * r(k);
 
       /* compute the new solution value */
@@ -208,7 +207,7 @@ namespace quadprog
         // Equality constraints are linearly dependent
         if (!options.graceful_exit)
         {
-          throw std::runtime_error("Equality constraints are linearly dependent");
+          throw std::invalid_argument("Equality constraints are linearly dependent");
         }
         result.status = SolverStatus::INFEASIBLE;
         result.message = "Equality constraints are linearly dependent";
@@ -217,7 +216,7 @@ namespace quadprog
     }
 
     /* set iai = K \ A */
-    for (i = 0; i < m; i++)
+    for (size_t i = 0; i < m; i++)
       iai(i) = i;
 
   l1:
@@ -225,7 +224,7 @@ namespace quadprog
     QUADPROG_TRACE("Iteration {} from l1", iter);
     QUADPROG_TRACE_VECTOR("x", x);
     /* step 1: choose a violated constraint */
-    for (i = p; i < iq; i++)
+    for (size_t i = p; i < iq; i++)
     {
       ip = A(i);
       iai(ip) = -1;
@@ -235,11 +234,11 @@ namespace quadprog
     ss = 0.0;
     psi = 0.0; /* the sum of all infeasibilities */
     ip = 0;    /* ip will be the index of the chosen violated constraint */
-    for (i = 0; i < m; i++)
+    for (size_t i = 0; i < m; i++)
     {
       iaexcl(i) = true;
       sum = 0.0;
-      for (j = 0; j < n; j++)
+      for (size_t j = 0; j < n; j++)
         sum += CI(j, i) * x(j);
       sum += ci0(i);
       s(i) = sum;
@@ -261,17 +260,17 @@ namespace quadprog
     }
 
     /* save old values for u and A */
-    for (i = 0; i < iq; i++)
+    for (size_t i = 0; i < iq; i++)
     {
       u_old(i) = u(i);
       A_old(i) = A(i);
     }
     /* and for x */
-    for (i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
       x_old(i) = x(i);
 
   l2: /* Step 2: check for feasibility and determine a new S-pair */
-    for (i = 0; i < m; i++)
+    for (size_t i = 0; i < m; i++)
     {
       if (s(i) < ss && iai(i) != -1 && iaexcl(i))
       {
@@ -292,7 +291,7 @@ namespace quadprog
     }
 
     /* set np = n[ip] */
-    for (i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
       np(i) = CI(i, ip);
     /* set u = [u 0]^T */
     u(iq) = 0.0;
@@ -319,7 +318,7 @@ namespace quadprog
     /* Compute t1: partial step length (maximum step in dual space without violating dual feasibility */
     t1 = inf;
     /* find the index l s.t. it reaches the minimum of u+[x] / r */
-    for (k = p; k < iq; k++)
+    for (size_t k = p; k < iq; k++)
     {
       if (r(k) > 0.0)
       {
@@ -359,7 +358,7 @@ namespace quadprog
     if (t2 >= inf)
     {
       /* set u = u +  t * [-r 1] and drop constraint l from the active set A */
-      for (k = 0; k < iq; k++)
+      for (size_t k = 0; k < iq; k++)
         u(k) -= t * r(k);
       u(iq) += t;
       iai(l) = l;
@@ -377,12 +376,12 @@ namespace quadprog
     /* case (iii): step in primal and dual space */
 
     /* set x = x + t * z */
-    for (k = 0; k < n; k++)
+    for (size_t k = 0; k < n; k++)
       x(k) += t * z(k);
     /* update the solution value */
     f_value += t * scalar_product<double>(z, np) * (0.5 * t + u(iq));
     /* u = u + t * [-r 1] */
-    for (k = 0; k < iq; k++)
+    for (size_t k = 0; k < iq; k++)
       u(k) -= t * r(k);
     u(iq) += t;
     QUADPROG_TRACE(" in both spaces: {}", f_value);
@@ -404,15 +403,15 @@ namespace quadprog
         QUADPROG_TRACE_MATRIX("R", R);
         QUADPROG_TRACE_VECTOR("A", A, iq);
         QUADPROG_TRACE_VECTOR("iai", iai);
-        for (i = 0; i < m; i++)
+        for (size_t i = 0; i < m; i++)
           iai(i) = i;
-        for (i = p; i < iq; i++)
+        for (size_t i = p; i < iq; i++)
         {
           A(i) = A_old(i);
           u(i) = u_old(i);
           iai(A(i)) = -1;
         }
-        for (i = 0; i < n; i++)
+        for (size_t i = 0; i < n; i++)
           x(i) = x_old(i);
         goto l2; /* go to step 2 */
       }
@@ -435,7 +434,7 @@ namespace quadprog
 
     /* update s[ip] = CI * x + ci0 */
     sum = 0.0;
-    for (k = 0; k < n; k++)
+    for (size_t k = 0; k < n; k++)
       sum += CI(k, ip) * x(k);
     s(ip) = sum + ci0(ip);
 

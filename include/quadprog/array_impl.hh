@@ -78,8 +78,7 @@ namespace quadprog
 
         T &operator()(size_t i, size_t j)
         {
-#ifdef NDEBUG
-            // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
             if (i >= rows_ || j >= cols_)
                 throw std::out_of_range("Matrix index out of range");
 #endif
@@ -88,8 +87,7 @@ namespace quadprog
 
         const T &operator()(size_t i, size_t j) const
         {
-#ifdef NDEBUG
-            // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
             if (i >= rows_ || j >= cols_)
                 throw std::out_of_range("Matrix index out of range");
 #endif
@@ -102,8 +100,7 @@ namespace quadprog
         // Row access
         std::vector<T> row(size_t i) const
         {
-#ifdef NDEBUG
-            // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
             if (i >= rows_)
                 throw std::out_of_range("Matrix row index out of range");
 #endif
@@ -118,9 +115,8 @@ namespace quadprog
         // Column access
         std::vector<T> col(size_t j) const
         {
-#ifdef NDEBUG
-            // In release mode, skip the check for performance
-            if (j >= ncols_)
+#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
+            if (j >= cols_)
                 throw std::out_of_range("Matrix column index out of range");
 #endif
             std::vector<T> result(rows_);
@@ -161,9 +157,16 @@ namespace quadprog
     template <typename T>
     class LowerTriangularMatrix
     {
-    private:
+    protected:
         std::shared_ptr<std::vector<T>> data_;
         size_t n_;
+
+        // Private constructor - only accessible via transpose()
+        LowerTriangularMatrix(std::shared_ptr<std::vector<T>> data, size_t n)
+            : data_(data), n_(n) {}
+
+        friend UpperTriangularMatrix<T> transpose<>(const LowerTriangularMatrix<T> &L);
+        friend LowerTriangularMatrix<T> transpose<>(const UpperTriangularMatrix<T> &U);
 
     public:
         LowerTriangularMatrix(size_t n)
@@ -178,7 +181,7 @@ namespace quadprog
 
         T &operator()(size_t i, size_t j)
         {
-#ifndef NDEBUG
+#ifdef QUADPROGPP_BOUNDS_CHECK           // In release mode, skip the check for performance
             if (i < j)
                 throw std::out_of_range("Accessing upper part of LowerTriangularMatrix");
 #endif
@@ -187,7 +190,7 @@ namespace quadprog
 
         const T &operator()(size_t i, size_t j) const
         {
-#ifndef NDEBUG
+#ifdef QUADPROGPP_BOUNDS_CHECK          // In release mode, skip the check for performance
             if (i < j)
                 throw std::out_of_range("Accessing upper part of LowerTriangularMatrix");
 #endif
@@ -208,7 +211,7 @@ namespace quadprog
     template <typename T>
     class UpperTriangularMatrix
     {
-    private:
+    protected:
         std::shared_ptr<std::vector<T>> data_; // Shared with LowerTriangularMatrix
         size_t n_;
 
@@ -224,9 +227,15 @@ namespace quadprog
         size_t ncols() const { return n_; }
         size_t size() const { return n_; }
 
+        UpperTriangularMatrix(size_t n)
+            : data_(std::make_shared<std::vector<T>>(n * (n + 1) / 2, T(0))), n_(n) {}
+
+        UpperTriangularMatrix(size_t n, const T &val)
+            : data_(std::make_shared<std::vector<T>>(n * (n + 1) / 2, val)), n_(n) {}
+
         T &operator()(size_t i, size_t j)
         {
-#ifndef NDEBUG
+#ifdef QUADPROGPP_BOUNDS_CHECK          // In release mode, skip the check for performance
             if (i > j)
                 throw std::out_of_range("Accessing lower part of UpperTriangularMatrix");
 #endif
@@ -285,11 +294,19 @@ namespace quadprog
         // Use the proper reference type from vector
         typename std::vector<T>::reference operator()(size_t i)
         {
+#ifndef NDEBUG
+            if (i >= this->size())
+                throw std::out_of_range("Vector index out of range");
+#endif
             return std::vector<T>::operator[](i);
         }
 
         typename std::vector<T>::const_reference operator()(size_t i) const
         {
+#ifndef NDEBUG
+            if (i >= this->size())
+                throw std::out_of_range("Vector index out of range");
+#endif
             return std::vector<T>::operator[](i);
         }
 
@@ -310,7 +327,7 @@ namespace quadprog
     {
         if (x.size() != y.size())
         {
-            throw std::logic_error("Vector size mismatch in scalar_product");
+            throw std::invalid_argument("Vector size mismatch in scalar_product");
         }
         T result = 0.0;
         for (size_t i = 0; i < x.size(); ++i)

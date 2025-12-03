@@ -17,7 +17,9 @@ option(QUADPROGPP_USE_ARMADILLO "Use Armadillo for matrix operations" OFF)
 option(QUADPROGPP_BUILD_TESTS "Build test suite" ON)
 option(QUADPROGPP_BUILD_EXAMPLES "Build examples" ON)
 option(QUADPROGPP_ENABLE_SEMIDEFINITE "Enable extension for semi-definite problems" OFF)
-option(QUADPROGPP_USE_SPDLOG "Use spdlog for logging" ON)
+option(QUADPROGPP_USE_SPDLOG "Use spdlog for logging" OFF)
+option(QUADPROGPP_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(QUADPROGPP_ENABLE_BOUNDS_CHECKING "Enable bounds checking" ON)
 
 # Library type option
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
@@ -115,11 +117,59 @@ if(QUADPROGPP_USE_SPDLOG)
     target_link_libraries(quadprogpp PRIVATE spdlog::spdlog)
 endif()
 
+if (QUADPROGPP_ENABLE_WARNINGS_AS_ERRORS)
+    if(MSVC)
+        target_compile_options(quadprogpp PRIVATE /WX)
+    else()
+        target_compile_options(quadprogpp PRIVATE -Werror)
+    endif()
+endif()
+
+if (QUADPROGPP_BUILD_TESTS)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG v3.11.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(Catch2)
+
+    # Test executable
+    add_executable(quadprogpp_tests
+        tests/test_main.cc        
+        tests/test_matrices.cc
+        tests/test_triangular.cc
+        tests/test_solvers.cc
+        tests/test_quadprog.cc
+        tests/test_quadprog_stress.cc
+    )
+
+    target_link_libraries(quadprogpp_tests 
+        PRIVATE 
+            QuadProg::quadprogpp
+            Catch2::Catch2WithMain
+    )
+
+    # If logging is enabled, link spdlog
+    if(QUADPROGPP_USE_SPDLOG)
+        target_link_libraries(quadprogpp_tests PRIVATE spdlog::spdlog)
+    endif()
+
+    # Discover tests
+    include(CTest)
+    include(Catch)
+    catch_discover_tests(quadprogpp_tests)
+endif()
+
 # Compiler warnings
 if(MSVC)
     target_compile_options(quadprogpp PRIVATE /W4 /WX-)
 else()
     target_compile_options(quadprogpp PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(QUADPROGPP_ENABLE_BOUNDS_CHECKING)
+    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_BOUNDS_CHECK)
 endif()
 
 # Examples

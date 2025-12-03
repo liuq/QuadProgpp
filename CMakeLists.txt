@@ -20,6 +20,9 @@ option(QUADPROGPP_ENABLE_SEMIDEFINITE "Enable extension for semi-definite proble
 option(QUADPROGPP_USE_SPDLOG "Use spdlog for logging" OFF)
 option(QUADPROGPP_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(QUADPROGPP_ENABLE_BOUNDS_CHECKING "Enable bounds checking" ON)
+option(QUADPROGPP_USE_SPDLOG "Use spdlog for logging" OFF)
+option(QUADPROGPP_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(QUADPROGPP_ENABLE_BOUNDS_CHECKING "Enable bounds checking" ON)
 
 # FetchContent module
 include(FetchContent)

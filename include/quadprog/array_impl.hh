@@ -159,6 +159,7 @@ namespace quadprog
     class LowerTriangularMatrix
     {
     protected:
+    protected:
         std::shared_ptr<std::vector<T>> data_;
         size_t n_;
 
@@ -212,6 +213,7 @@ namespace quadprog
     template <typename T>
     class UpperTriangularMatrix
     {
+    protected:
     protected:
         std::shared_ptr<std::vector<T>> data_; // Shared with LowerTriangularMatrix
         size_t n_;
@@ -297,11 +299,19 @@ namespace quadprog
             if (i >= this->size())
                 throw std::out_of_range("Vector index out of range");
 #endif
+#ifndef NDEBUG
+            if (i >= this->size())
+                throw std::out_of_range("Vector index out of range");
+#endif
             return std::vector<T>::operator[](i);
         }
 
         typename std::vector<T>::const_reference operator()(size_t i) const
         {
+#ifndef NDEBUG
+            if (i >= this->size())
+                throw std::out_of_range("Vector index out of range");
+#endif
 #ifndef NDEBUG
             if (i >= this->size())
                 throw std::out_of_range("Vector index out of range");

@@ -13,7 +13,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Options
 option(QUADPROGPP_USE_EIGEN "Use Eigen for matrix operations" OFF)
-option(QUADPROGPP_USE_ARMADILLO "Use Armadillo for matrix operations" OFF)
 option(QUADPROGPP_BUILD_TESTS "Build test suite" ON)
 option(QUADPROGPP_BUILD_EXAMPLES "Build examples" ON)
 option(QUADPROGPP_USE_SPDLOG "Use spdlog for logging" OFF)
@@ -28,11 +27,11 @@ include(FetchContent)
 
 # Configure matrix backend
 set(QUADPROGPP_MATRIX_BACKEND "builtin" CACHE STRING "Matrix backend to use")
-set_property(CACHE QUADPROGPP_MATRIX_BACKEND PROPERTY STRINGS "builtin" "eigen" "armadillo")
+set_property(CACHE QUADPROGPP_MATRIX_BACKEND PROPERTY STRINGS "builtin" "eigen")
 
 # Handle matrix backend selection
 if(QUADPROGPP_USE_EIGEN OR QUADPROGPP_MATRIX_BACKEND STREQUAL "eigen")
-    find_package(Eigen3 3.3 QUIET)
+    find_package(Eigen3 3.4 QUIET)
     if(NOT Eigen3_FOUND)
         message(STATUS "Eigen3 not found locally, fetching from GitHub...")
         FetchContent_Declare(
@@ -45,15 +44,6 @@ if(QUADPROGPP_USE_EIGEN OR QUADPROGPP_MATRIX_BACKEND STREQUAL "eigen")
     endif()
     set(QUADPROGPP_HAS_EIGEN TRUE)
     set(QUADPROGPP_MATRIX_BACKEND "eigen")
-elseif(QUADPROGPP_USE_ARMADILLO OR QUADPROGPP_MATRIX_BACKEND STREQUAL "armadillo")
-    find_package(Armadillo QUIET)
-    if(Armadillo_FOUND)
-        set(QUADPROGPP_HAS_ARMADILLO TRUE)
-        set(QUADPROGPP_MATRIX_BACKEND "armadillo")
-    else()
-        message(WARNING "Armadillo requested but not found, falling back to builtin")
-        set(QUADPROGPP_MATRIX_BACKEND "builtin")
-    endif()
 else()
     set(QUADPROGPP_MATRIX_BACKEND "builtin")
 endif()
@@ -84,11 +74,8 @@ target_compile_features(quadprogpp INTERFACE cxx_std_20)
 if(QUADPROGPP_HAS_EIGEN)
     target_link_libraries(quadprogpp INTERFACE Eigen3::Eigen)
     target_compile_definitions(quadprogpp INTERFACE QUADPROGPP_USE_EIGEN)
-elseif(QUADPROGPP_HAS_ARMADILLO)
-    target_link_libraries(quadprogpp INTERFACE ${ARMADILLO_LIBRARIES})
-    target_include_directories(quadprogpp INTERFACE ${ARMADILLO_INCLUDE_DIRS})
-    target_compile_definitions(quadprogpp INTERFACE QUADPROGPP_USE_ARMADILLO)
 endif()
+
 
 # Bounds checking
 if(QUADPROGPP_ENABLE_BOUNDS_CHECKING)

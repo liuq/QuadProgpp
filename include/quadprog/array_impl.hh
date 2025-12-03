@@ -32,8 +32,6 @@ namespace quadprog
         MatrixImpl(size_t r, size_t c, const T &val)
             : data_(r * c, val), rows_(r), cols_(c) {}
 
-        size_t rows() const { return rows_; }
-        size_t cols() const { return cols_; }
         size_t size() const { return data_.size(); }
 
         void resize(size_t r, size_t c)

@@ -27,11 +27,10 @@ namespace quadprog
     template <std::floating_point T>
     struct SolverOptions
     {
-        T tolerance = std::sqrt(std::numeric_limits<double>::epsilon());    // Numerical tolerance
-        size_t max_iterations = 1000;            // Maximum iterations
-        bool enable_logging = false;             // Enable debug logging
-        bool use_semidefinite_extension = false; // Use Boland method for semi-definite
-        bool graceful_exit = false;              // Exit without throwing on failure
+        T tolerance = std::numeric_limits<T>::epsilon(); // Numerical tolerance
+        bool enable_logging = false;                     // Enable debug logging
+        bool use_semidefinite_extension = false;         // Use Boland method for semi-definite
+        bool graceful_exit = false;                      // Exit without throwing on failure
 
         SolverOptions() = default;
     };

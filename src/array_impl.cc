@@ -88,9 +88,12 @@ namespace quadprog
     
     /* Solve L * y = b */
     forward_elimination(L, y, b);
+
+    QUADPROG_TRACE_VECTOR("y after forward elimination", y);
     
     /* Solve L^T * x = y */
     backward_substitution(transpose(L), x, y);
+    QUADPROG_TRACE_VECTOR("x after backward substitution", x);
 }
 
 } // namespace quadprog

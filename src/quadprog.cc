@@ -8,7 +8,6 @@
 #include <quadprog/quadprog.h>
 #include <quadprog/internal/logging.h>
 
-
 namespace quadprog
 {
 
@@ -16,35 +15,13 @@ namespace quadprog
   // Utility Functions
   // ============================================================================
 
-  // bool is_positive_definite(const Matrix<double> &G, double tolerance)
-  // {
-  //   // TODO: Implement proper check (Cholesky decomposition attempt)
-  //   // For now, simple diagonal check
-  //   for (size_t i = 0; i < G.rows(); ++i)
-  //   {
-  //     if (G(i, i) <= tolerance)
-  //     {
-  //       return false;
-  //     }
-  //   }
-  //   return true;
-  // }
-
-  // size_t matrix_rank(const Matrix<double> &M, double tolerance)
-  // {
-  //   // TODO: Implement SVD-based rank computation
-  //   // For now, return full rank
-  //   assert(tolerance >= 0.0);
-  //   return std::min(M.rows(), M.cols());
-  // }
-
   // Givens rotation and related helper functions
   void compute_d(Vector<double> &d, const Matrix<double> &J, const Vector<double> &np);
   void update_z(Vector<double> &z, const Matrix<double> &J, const Vector<double> &d, size_t iq);
   void update_r(const Matrix<double> &R, Vector<double> &r, const Vector<double> &d, size_t iq);
   bool add_constraint(Matrix<double> &R, Matrix<double> &J, Vector<double> &d, size_t &iq, double &rnorm);
   // TODO: check p and l types
-  void delete_constraint(Matrix<double> &R, Matrix<double> &J, Vector<int> &A, Vector<double> &u, size_t n, int p, size_t &iq, int l);
+  void delete_constraint(Matrix<double> &R, Matrix<double> &J, Vector<int> &A, Vector<double> &u, size_t n, size_t p, size_t &iq, int l);
   double distance(double a, double b);
 
   // ============================================================================
@@ -133,7 +110,8 @@ namespace quadprog
     //   return result;
     // }
 
-    size_t i, j, k, l; /* indices */
+    size_t i, j, k; /* indices */    
+    int l; 
     int ip;            // this is the index of the constraint to be added to the active set
     Matrix<double> R(n, n), J(n, n);
     Vector<double> s(m + p), z(n), r(m + p), d(n), np(n), u(m + p), x(n), x_old(n), u_old(m + p);
@@ -186,7 +164,7 @@ namespace quadprog
     cholesky_solve(G_, x, g0);
     // Negate x
     for (i = 0; i < n; i++)
-      x(i) *= -x(i);
+      x(i) = -x(i);
     /* and compute the current solution value */
     f_value = 0.5 * scalar_product<double>(g0, x);
     QUADPROG_TRACE("Unconstrained solution: {}", f_value);
@@ -402,7 +380,7 @@ namespace quadprog
     for (k = 0; k < n; k++)
       x(k) += t * z(k);
     /* update the solution value */
-    f_value += t * scalar_product<double>(z, np) * (0.5 * t + u((iq)));
+    f_value += t * scalar_product<double>(z, np) * (0.5 * t + u(iq));
     /* u = u + t * [-r 1] */
     for (k = 0; k < iq; k++)
       u(k) -= t * r(k);
@@ -483,215 +461,216 @@ namespace quadprog
       return result.objective_value;
     }
     else
-    {      
+    {
       return std::numeric_limits<double>::infinity();
     }
   }
-  
-  inline void compute_d(Vector<double>& d, const Matrix<double>& J, const Vector<double>& np)
-{
-  size_t n = d.size();
-  double sum;
-  
-  /* compute d = H^T * np */
-  for (size_t i = 0; i < n; i++)
-  {
-    sum = 0.0;
-    for (size_t j = 0; j < n; j++)
-      sum += J(j, i) * np(j);
-    d(i) = sum;
-  }
-}
 
-inline void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<double>& d, size_t iq)
-{
-  size_t n = z.size();
-	
-  /* setting of z = H * d */
-  for (size_t i = 0; i < n; i++)
+  inline void compute_d(Vector<double> &d, const Matrix<double> &J, const Vector<double> &np)
   {
-    z(i) = 0.0;
-    for (size_t j = iq; j < n; j++)
-      z(i) += J(i, j) * d(j);
-  }
-}
+    size_t n = d.size();
+    double sum;
 
-inline void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<double>& d, size_t iq)
-{
-  double sum;
-  
-  /* setting of r = R^-1 d */
-  for (int i = iq - 1; i >= 0; i--)
-  {
-    sum = 0.0;
-    for (size_t j = i + 1; j < iq; j++)
-      sum += R(i, j) * r(j);
-    r(i) = (d(i) - sum) / R(i, i);
-  }
-}
-
-bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, size_t& iq, double& R_norm)
-{
-  size_t n = d.size();
-  QUADPROG_TRACE("Adding constraint at position {}", iq);
-  double cc, ss, h, t1, t2, xny;
-	
-  /* we have to find the Givens rotation which will reduce the element
-    d[j] to zero.
-    if it is already zero we don't have to do anything, except of
-    decreasing j */  
-  for (int j = n - 1; j >= static_cast<int>(iq + 1); j--)
-  {
-    /* The Givens rotation is done with the matrix (cc cs, cs -cc).
-    If cc is one, then element (j) of d is zero compared with element
-    (j - 1). Hence we don't have to do anything. 
-    If cc is zero, then we just have to switch column (j) and column (j - 1) 
-    of J. Since we only switch columns in J, we have to be careful how we
-    update d depending on the sign of gs.
-    Otherwise we have to apply the Givens rotation to these columns.
-    The i - 1 element of d has to be updated to h. */
-    cc = d(j - 1);
-    ss = d(j);
-    h = distance(cc, ss);
-    if (std::fabs(h) < std::numeric_limits<double>::epsilon()) // h == 0
-      continue;
-    d(j) = 0.0;
-    ss = ss / h;
-    cc = cc / h;
-    if (cc < 0.0)
+    /* compute d = H^T * np */
+    for (size_t i = 0; i < n; i++)
     {
-      cc = -cc;
-      ss = -ss;
-      d(j - 1) = -h;
-    }
-    else
-      d(j - 1) = h;
-    xny = ss / (1.0 + cc);
-    for (size_t k = 0; k < n; k++)
-    {
-      t1 = J(k, j - 1);
-      t2 = J(k, j);
-      J(k, j - 1) = t1 * cc + t2 * ss;
-      J(k, j) = xny * (t1 + J(k, j - 1)) - t2;
+      sum = 0.0;
+      for (size_t j = 0; j < n; j++)
+        sum += J(j, i) * np(j);
+      d(i) = sum;
     }
   }
-  /* update the number of constraints added*/
-  iq++;
-  /* To update R we have to put the iq components of the d vector
-    into column iq - 1 of R
-    */
-  for (size_t i = 0; i < iq; i++)
-    R(i, iq - 1) = d(i);
-  QUADPROG_TRACE_MATRIX("R", R, iq, iq);
-  QUADPROG_TRACE_MATRIX("J", J);
-  QUADPROG_TRACE_VECTOR("d", d, iq);
-  
-  if (fabs(d(iq - 1)) <= std::numeric_limits<double>::epsilon() * R_norm) 
+
+  inline void update_z(Vector<double> &z, const Matrix<double> &J, const Vector<double> &d, size_t iq)
   {
-    // degenerate problem 
-    return false;
-  }
-  R_norm = std::max<double>(R_norm, fabs(d(iq - 1)));
-  return true;
-}
+    size_t n = z.size();
 
-void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, size_t n, int p, size_t& iq, int l)
-{
-  QUADPROG_TRACE("Deleting constraint at position {}", l);
-  size_t qq = 0; // just to prevent warnings from smart compilers
-  double cc, ss, h, xny, t1, t2;
-
-  bool found = false;
-  /* Find the index qq for active constraint l to be removed */
-  for (size_t i = p; i < iq; i++)
-    if (A(i) == l)
+    /* setting of z = H * d */
+    for (size_t i = 0; i < n; i++)
     {
-      qq = i;
-      found = true;
-      break;
+      z(i) = 0.0;
+      for (size_t j = iq; j < n; j++)
+        z(i) += J(i, j) * d(j);
     }
-
-  if(!found)
-  {
-    QUADPROG_TRACE("Attempt to delete non existing constraint {}", l);
-    throw std::invalid_argument("Attempt to delete non existing constraint " + std::to_string(l));
   }
-  /* remove the constraint from the active set and the duals */
-  for (size_t i = qq; i < iq - 1; i++)
+
+  inline void update_r(const Matrix<double> &R, Vector<double> &r, const Vector<double> &d, size_t iq)
+  {
+    double sum;
+
+    /* setting of r = R^-1 d */
+    for (size_t i = iq; i-- > 0;) // go backwards from iq-1 to 0
+//    for (int i = iq - 1; i >= 0; i--)
+    {
+      sum = 0.0;
+      for (size_t j = i + 1; j < iq; j++)
+        sum += R(i, j) * r(j);
+      r(i) = (d(i) - sum) / R(i, i);
+    }
+  }
+
+  bool add_constraint(Matrix<double> &R, Matrix<double> &J, Vector<double> &d, size_t &iq, double &R_norm)
+  {
+    size_t n = d.size();
+    QUADPROG_TRACE("Adding constraint at position {}", iq);
+    double cc, ss, h, t1, t2, xny;
+
+    /* we have to find the Givens rotation which will reduce the element
+      d[j] to zero.
+      if it is already zero we don't have to do anything, except of
+      decreasing j */
+    for (size_t j = n; j-- > iq + 1;) // go backwards from n-1 to iq+1
+//    for (int j = n - 1; j >= static_cast<int>(iq + 1); j--)
+    {
+      /* The Givens rotation is done with the matrix (cc cs, cs -cc).
+      If cc is one, then element (j) of d is zero compared with element
+      (j - 1). Hence we don't have to do anything.
+      If cc is zero, then we just have to switch column (j) and column (j - 1)
+      of J. Since we only switch columns in J, we have to be careful how we
+      update d depending on the sign of gs.
+      Otherwise we have to apply the Givens rotation to these columns.
+      The i - 1 element of d has to be updated to h. */
+      cc = d(j - 1);
+      ss = d(j);
+      h = distance(cc, ss);
+      if (std::fabs(h) < std::numeric_limits<double>::epsilon()) // h == 0
+        continue;
+      d(j) = 0.0;
+      ss = ss / h;
+      cc = cc / h;
+      if (cc < 0.0)
+      {
+        cc = -cc;
+        ss = -ss;
+        d(j - 1) = -h;
+      }
+      else
+        d(j - 1) = h;
+      xny = ss / (1.0 + cc);
+      for (size_t k = 0; k < n; k++)
+      {
+        t1 = J(k, j - 1);
+        t2 = J(k, j);
+        J(k, j - 1) = t1 * cc + t2 * ss;
+        J(k, j) = xny * (t1 + J(k, j - 1)) - t2;
+      }
+    }
+    /* update the number of constraints added*/
+    iq++;
+    /* To update R we have to put the iq components of the d vector
+      into column iq - 1 of R
+      */
+    for (size_t i = 0; i < iq; i++)
+      R(i, iq - 1) = d(i);
+    QUADPROG_TRACE_MATRIX("R", R, iq, iq);
+    QUADPROG_TRACE_MATRIX("J", J);
+    QUADPROG_TRACE_VECTOR("d", d, iq);
+
+    if (fabs(d(iq - 1)) <= std::numeric_limits<double>::epsilon() * R_norm)
+    {
+      // degenerate problem
+      return false;
+    }
+    R_norm = std::max<double>(R_norm, fabs(d(iq - 1)));
+    return true;
+  }
+
+  void delete_constraint(Matrix<double> &R, Matrix<double> &J, Vector<int> &A, Vector<double> &u, size_t n, size_t p, size_t &iq, int l)
+  {
+    QUADPROG_TRACE("Deleting constraint at position {}", l);
+    size_t qq = 0; // just to prevent warnings from smart compilers
+    double cc, ss, h, xny, t1, t2;
+
+    bool found = false;
+    /* Find the index qq for active constraint l to be removed */
+    for (size_t i = p; i < iq; i++)
+      if (A(i) == l)
+      {
+        qq = i;
+        found = true;
+        break;
+      }
+
+    if (!found)
+    {
+      QUADPROG_TRACE("Attempt to delete non existing constraint {}", l);
+      throw std::invalid_argument("Attempt to delete non existing constraint " + std::to_string(l));
+    }
+    /* remove the constraint from the active set and the duals */
+    for (size_t i = qq; i < iq - 1; i++)
     {
       A(i) = A(i + 1);
       u(i) = u(i + 1);
       for (size_t j = 0; j < n; j++)
         R(j, i) = R(j, i + 1);
     }
-      
-  A(iq - 1) = A(iq);
-  u(iq - 1) = u(iq);
-  A(iq) = 0; 
-  u(iq) = 0.0;
-  for (size_t j = 0; j < iq; j++)
-    R(j, iq - 1) = 0.0;
-  /* constraint has been fully removed */
-  iq--;
-  QUADPROG_TRACE("{} constraints remain after deletion", iq);
-  
-  if (iq == 0)
-    return;
-  
-  for (size_t j = qq; j < iq; j++)
-  {
-    cc = R(j, j);
-    ss = R(j + 1, j);
-    h = distance(cc, ss);
-    if (fabs(h) < std::numeric_limits<double>::epsilon()) // h == 0
-      continue;
-    cc = cc / h;
-    ss = ss / h;
-    R(j + 1, j) = 0.0;
-    if (cc < 0.0)
-    {
-      R(j, j) = -h;
-      cc = -cc;
-      ss = -ss;
-    }
-    else
-      R(j, j) = h;
-    
-    xny = ss / (1.0 + cc);
-    for (size_t k = j + 1; k < iq; k++)
-    {
-      t1 = R(j, k);
-      t2 = R(j + 1, k);
-      R(j, k) = t1 * cc + t2 * ss;
-      R(j + 1, k) = xny * (t1 + R(j, k)) - t2;
-    }
-    for (size_t k = 0; k < n; k++)
-    {
-      t1 = J(k, j);
-      t2 = J(k, j + 1);
-      J(k, j) = t1 * cc + t2 * ss;
-      J(k, j + 1) = xny * (J(k, j) + t1) - t2;
-    }
-  }
-}
 
-inline double distance(double a, double b)
-{
-  double a1, b1, t;
-  a1 = std::fabs(a);
-  b1 = std::fabs(b);
-  if (a1 > b1) 
-  {
-    t = (b1 / a1);
-    return a1 * std::sqrt(1.0 + t * t);
+    A(iq - 1) = A(iq);
+    u(iq - 1) = u(iq);
+    A(iq) = 0;
+    u(iq) = 0.0;
+    for (size_t j = 0; j < iq; j++)
+      R(j, iq - 1) = 0.0;
+    /* constraint has been fully removed */
+    iq--;
+    QUADPROG_TRACE("{} constraints remain after deletion", iq);
+
+    if (iq == 0) // no constraints left
+      return;
+
+    for (size_t j = qq; j < iq; j++)
+    {
+      cc = R(j, j);
+      ss = R(j + 1, j);
+      h = distance(cc, ss);
+      if (fabs(h) < std::numeric_limits<double>::epsilon()) // h == 0
+        continue;
+      cc = cc / h;
+      ss = ss / h;
+      R(j + 1, j) = 0.0;
+      if (cc < 0.0)
+      {
+        R(j, j) = -h;
+        cc = -cc;
+        ss = -ss;
+      }
+      else
+        R(j, j) = h;
+
+      xny = ss / (1.0 + cc);
+      for (size_t k = j + 1; k < iq; k++)
+      {
+        t1 = R(j, k);
+        t2 = R(j + 1, k);
+        R(j, k) = t1 * cc + t2 * ss;
+        R(j + 1, k) = xny * (t1 + R(j, k)) - t2;
+      }
+      for (size_t k = 0; k < n; k++)
+      {
+        t1 = J(k, j);
+        t2 = J(k, j + 1);
+        J(k, j) = t1 * cc + t2 * ss;
+        J(k, j + 1) = xny * (J(k, j) + t1) - t2;
+      }
+    }
   }
-  else
-    if (b1 > a1)
+
+  inline double distance(double a, double b)
+  {
+    double a1, b1, t;
+    a1 = std::fabs(a);
+    b1 = std::fabs(b);
+    if (a1 > b1)
+    {
+      t = (b1 / a1);
+      return a1 * std::sqrt(1.0 + t * t);
+    }
+    else if (b1 > a1)
     {
       t = (a1 / b1);
       return b1 * std::sqrt(1.0 + t * t);
     }
-  return a1 * std::sqrt(2.0);
-}
+    return a1 * std::sqrt(2.0);
+  }
 
 } // namespace quadprog

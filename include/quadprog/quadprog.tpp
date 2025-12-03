@@ -1,11 +1,3 @@
-#include <cmath>
-#include <limits>
-#include <algorithm>
-#include <cassert>
-#include <stdexcept>
-#include <vector>
-#include <quadprog/array_impl.hh>
-#include <quadprog/quadprog.h>
 #include <quadprog/internal/logging.h>
 
 namespace quadprog
@@ -16,28 +8,35 @@ namespace quadprog
   // ============================================================================
 
   // Givens rotation and related helper functions
-  void compute_d(Vector<double> &d, const Matrix<double> &J, const Vector<double> &np);
-  void update_z(Vector<double> &z, const Matrix<double> &J, const Vector<double> &d, size_t iq);
-  void update_r(const Matrix<double> &R, Vector<double> &r, const Vector<double> &d, size_t iq);
-  bool add_constraint(Matrix<double> &R, Matrix<double> &J, Vector<double> &d, size_t &iq, double &rnorm);
-  // TODO: check p and l types
-  void delete_constraint(Matrix<double> &R, Matrix<double> &J, Vector<int> &A, Vector<double> &u, size_t n, size_t p, size_t &iq, int l);
-  double distance(double a, double b);
+  template <std::floating_point T>
+  void compute_d(Vector<T> &d, const Matrix<T> &J, const Vector<T> &np);
+  template <std::floating_point T>
+  void update_z(Vector<T> &z, const Matrix<T> &J, const Vector<T> &d, size_t iq);
+  template <std::floating_point T>
+  void update_r(const Matrix<T> &R, Vector<T> &r, const Vector<T> &d, size_t iq);
+  template <std::floating_point T>
+  bool add_constraint(Matrix<T> &R, Matrix<T> &J, Vector<T> &d, size_t &iq, T &rnorm);
+  // TODO: check l types
+  template <std::floating_point T>
+  void delete_constraint(Matrix<T> &R, Matrix<T> &J, Vector<int> &A, Vector<T> &u, size_t n, size_t p, size_t &iq, int l);
+  template <std::floating_point T>
+  double distance(T a, T b);
 
   // ============================================================================
   // Main Solver (Stub Implementation)
   // ============================================================================
 
-  SolverResult solve_quadprog(
-      const Matrix<double> &G,
-      const Vector<double> &g0,
-      const Matrix<double> &CE,
-      const Vector<double> &ce0,
-      const Matrix<double> &CI,
-      const Vector<double> &ci0,
-      const SolverOptions &options)
+  template <std::floating_point T>
+  SolverResult<T> solve_quadprog(
+      const Matrix<T> &G,
+      const Vector<T> &g0,
+      const Matrix<T> &CE,
+      const Vector<T> &ce0,
+      const Matrix<T> &CI,
+      const Vector<T> &ci0,
+      const SolverOptions<T> &options)
   {
-    SolverResult result;
+    SolverResult<T> result;
 
     // Validate inputs
     const size_t n = G.rows();
@@ -112,11 +111,11 @@ namespace quadprog
 
     int l; 
     int ip;            // this is the index of the constraint to be added to the active set
-    Matrix<double> R(n, n), J(n, n);
-    Vector<double> s(m + p), z(n), r(m + p), d(n), np(n), u(m + p), x(n), x_old(n), u_old(m + p);
-    double f_value, psi, c1, c2, sum, ss, R_norm;
-    constexpr double inf = std::numeric_limits<double>::infinity();
-    double t, t1, t2; /* t is the step lenght, which is the minimum of the partial step length t1 and the full step length t2 */
+    Matrix<T> R(n, n), J(n, n);
+    Vector<T> s(m + p), z(n), r(m + p), d(n), np(n), u(m + p), x(n), x_old(n), u_old(m + p);
+    T f_value, psi, c1, c2, sum, ss, R_norm;
+    constexpr T inf = std::numeric_limits<double>::infinity();
+    T t, t1, t2; /* t is the step lenght, which is the minimum of the partial step length t1 and the full step length t2 */
     Vector<int> A(m + p, 0), A_old(m + p, 0), iai(m + p, 0);
     size_t iq, iter = 0;
     Vector<bool> iaexcl(m + p, false);
@@ -186,7 +185,7 @@ namespace quadprog
 
       /* compute full step length t2: i.e., the minimum step in primal space s.t. the contraint becomes feasible */
       t2 = 0.0;
-      if (std::fabs(scalar_product<double>(z, z)) > DEFAULT_TOLERANCE) // i.e. z != 0
+      if (std::fabs(scalar_product<double>(z, z)) > options.tolerance) // i.e. z != 0
         t2 = (-scalar_product<double>(np, x) - ce0(i)) / scalar_product<double>(z, np);
 
       /* set x = x + t2 * z */
@@ -443,7 +442,7 @@ namespace quadprog
     goto l2a;
   }
 
-  double solve_quadprog_legacy(
+  inline double solve_quadprog_legacy(
       Matrix<double> &G,
       Vector<double> &g0,
       const Matrix<double> &CE,
@@ -452,7 +451,7 @@ namespace quadprog
       const Vector<double> &ci0,
       Vector<double> &x)
   {
-    auto result = solve_quadprog(G, g0, CE, ce0, CI, ci0);
+    auto result = solve_quadprog<double>(G, g0, CE, ce0, CI, ci0);
 
     if (result.is_success())
     {
@@ -465,10 +464,11 @@ namespace quadprog
     }
   }
 
-  inline void compute_d(Vector<double> &d, const Matrix<double> &J, const Vector<double> &np)
+  template <std::floating_point T>
+  inline void compute_d(Vector<T> &d, const Matrix<T> &J, const Vector<T> &np)
   {
     size_t n = d.size();
-    double sum;
+    T sum;
 
     /* compute d = H^T * np */
     for (size_t i = 0; i < n; i++)
@@ -480,7 +480,8 @@ namespace quadprog
     }
   }
 
-  inline void update_z(Vector<double> &z, const Matrix<double> &J, const Vector<double> &d, size_t iq)
+  template <std::floating_point T>
+  inline void update_z(Vector<T> &z, const Matrix<T> &J, const Vector<T> &d, size_t iq)
   {
     size_t n = z.size();
 
@@ -493,9 +494,10 @@ namespace quadprog
     }
   }
 
-  inline void update_r(const Matrix<double> &R, Vector<double> &r, const Vector<double> &d, size_t iq)
+  template <std::floating_point T>
+  inline void update_r(const Matrix<T> &R, Vector<T> &r, const Vector<T> &d, size_t iq)
   {
-    double sum;
+    T sum;
 
     /* setting of r = R^-1 d */
     for (size_t i = iq; i-- > 0;) // go backwards from iq-1 to 0
@@ -508,11 +510,12 @@ namespace quadprog
     }
   }
 
-  bool add_constraint(Matrix<double> &R, Matrix<double> &J, Vector<double> &d, size_t &iq, double &R_norm)
+  template <std::floating_point T>
+  bool add_constraint(Matrix<T> &R, Matrix<T> &J, Vector<T> &d, size_t &iq, T &R_norm)
   {
     size_t n = d.size();
     QUADPROG_TRACE("Adding constraint at position {}", iq);
-    double cc, ss, h, t1, t2, xny;
+    T cc, ss, h, t1, t2, xny;
 
     /* we have to find the Givens rotation which will reduce the element
       d[j] to zero.
@@ -565,20 +568,21 @@ namespace quadprog
     QUADPROG_TRACE_MATRIX("J", J);
     QUADPROG_TRACE_VECTOR("d", d, iq);
 
-    if (fabs(d(iq - 1)) <= std::numeric_limits<double>::epsilon() * R_norm)
+    if (std::fabs(d(iq - 1)) <= std::numeric_limits<double>::epsilon() * R_norm)
     {
       // degenerate problem
       return false;
     }
-    R_norm = std::max<double>(R_norm, fabs(d(iq - 1)));
+    R_norm = std::max<T>(R_norm, std::fabs(d(iq - 1)));
     return true;
   }
 
-  void delete_constraint(Matrix<double> &R, Matrix<double> &J, Vector<int> &A, Vector<double> &u, size_t n, size_t p, size_t &iq, int l)
+  template <std::floating_point T>
+  void delete_constraint(Matrix<T> &R, Matrix<T> &J, Vector<int> &A, Vector<T> &u, size_t n, size_t p, size_t &iq, int l)
   {
     QUADPROG_TRACE("Deleting constraint at position {}", l);
     size_t qq = 0; // just to prevent warnings from smart compilers
-    double cc, ss, h, xny, t1, t2;
+    T cc, ss, h, xny, t1, t2;
 
     bool found = false;
     /* Find the index qq for active constraint l to be removed */
@@ -622,12 +626,12 @@ namespace quadprog
       cc = R(j, j);
       ss = R(j + 1, j);
       h = distance(cc, ss);
-      if (fabs(h) < std::numeric_limits<double>::epsilon()) // h == 0
+      if (std::fabs(h) < std::numeric_limits<T>::epsilon()) // h == 0
         continue;
       cc = cc / h;
       ss = ss / h;
-      R(j + 1, j) = 0.0;
-      if (cc < 0.0)
+      R(j + 1, j) = T(0.0);
+      if (cc < T(0.0))
       {
         R(j, j) = -h;
         cc = -cc;
@@ -636,7 +640,7 @@ namespace quadprog
       else
         R(j, j) = h;
 
-      xny = ss / (1.0 + cc);
+      xny = ss / (T(1.0) + cc);
       for (size_t k = j + 1; k < iq; k++)
       {
         t1 = R(j, k);
@@ -654,9 +658,10 @@ namespace quadprog
     }
   }
 
-  inline double distance(double a, double b)
+  template <std::floating_point T>
+  inline double distance(T a, T b)
   {
-    double a1, b1, t;
+    T a1, b1, t;
     a1 = std::fabs(a);
     b1 = std::fabs(b);
     if (a1 > b1)

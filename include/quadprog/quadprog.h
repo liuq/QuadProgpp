@@ -5,20 +5,19 @@
 #include <stdexcept>
 #include <memory>
 #include <cmath>
+#include <concepts>
 #include <quadprog/array_impl.hh>
 
 namespace quadprog
 {
-
-    constexpr double DEFAULT_TOLERANCE = 1e-10;
-
     // ============================================================================
     // Solver Configuration
     // ============================================================================
 
+    template <std::floating_point T>
     struct SolverOptions
     {
-        double tolerance = DEFAULT_TOLERANCE;    // Numerical tolerance
+        T tolerance = std::sqrt(std::numeric_limits<double>::epsilon());    // Numerical tolerance
         size_t max_iterations = 1000;            // Maximum iterations
         bool enable_logging = false;             // Enable debug logging
         bool use_semidefinite_extension = false; // Use Boland method for semi-definite
@@ -41,11 +40,12 @@ namespace quadprog
         NUMERICAL_ERROR
     };
 
+    template <std::floating_point T>
     struct SolverResult
     {
         SolverStatus status = SolverStatus::UNSOLVED;
-        Vector<double> solution;
-        double objective_value = 0.0;
+        Vector<T> solution;
+        T objective_value = 0.0;
         size_t iterations = 0;
         std::vector<size_t> active_set;
         std::string message = "Unsolved";
@@ -74,14 +74,15 @@ namespace quadprog
      * @param options Solver options
      * @return SolverResult with status and diagnostics
      */
-    SolverResult solve_quadprog(
-        const Matrix<double> &G,
-        const Vector<double> &g0,
-        const Matrix<double> &CE,
-        const Vector<double> &ce0,
-        const Matrix<double> &CI,
-        const Vector<double> &ci0,
-        const SolverOptions &options = SolverOptions());
+    template <std::floating_point T>
+    SolverResult<T> solve_quadprog(
+        const Matrix<T> &G,
+        const Vector<T> &g0,
+        const Matrix<T> &CE,
+        const Vector<T> &ce0,
+        const Matrix<T> &CI,
+        const Vector<T> &ci0,
+        const SolverOptions<T> &options = SolverOptions<T>());
 
     /**
      * @brief Legacy interface matching original QuadProg++
@@ -104,14 +105,19 @@ namespace quadprog
      * Handles positive semi-definite G matrices by partitioning variables
      * into quadratic and linear parts.
      */
-    SolverResult solve_quadprog_semidefinite(
-        const Matrix<double> &G,
-        const Vector<double> &g0,
-        const Matrix<double> &CE,
-        const Vector<double> &ce0,
-        const Matrix<double> &CI,
-        const Vector<double> &ci0,
-        const SolverOptions &options = SolverOptions());
+    template <std::floating_point T>
+    SolverResult<T> solve_quadprog_semidefinite(
+        const Matrix<T> &G,
+        const Vector<T> &g0,
+        const Matrix<T> &CE,
+        const Vector<T> &ce0,
+        const Matrix<T> &CI,
+        const Vector<T> &ci0,
+        const SolverOptions<T> &options = SolverOptions());
 #endif
 
 } // namespace quadprog
+
+// Include implementation
+
+#include <quadprog/quadprog.tpp>

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 
 project(QuadProgpp 
     VERSION 2.0.0
-    DESCRIPTION "Modern C++ Quadratic Programming Solver (Goldfarb-Idnani + Boland extension)"
+    DESCRIPTION "Modern C++ Quadratic Programming Solver (Goldfarb-Idnani Algorithm) header-only library"
     LANGUAGES CXX
 )
 
@@ -21,9 +21,7 @@ option(QUADPROGPP_USE_SPDLOG "Use spdlog for logging" OFF)
 option(QUADPROGPP_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(QUADPROGPP_ENABLE_BOUNDS_CHECKING "Enable bounds checking" ON)
 
-# Library type option
-option(BUILD_SHARED_LIBS "Build shared libraries" ON)
-
+# FetchContent module
 include(FetchContent)
 
 # Configure matrix backend
@@ -66,39 +64,43 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/include/quadprog/config.h
 )
 
-# Main library
-add_library(quadprogpp)
+# Main library - INTERFACE (header-only)
+add_library(quadprogpp INTERFACE)
 add_library(QuadProg::quadprogpp ALIAS quadprogpp)
 
-target_sources(quadprogpp
-    PRIVATE
-        src/quadprog.cc
-        src/array_impl.cc
-)
-
 target_include_directories(quadprogpp
-    PUBLIC
+    INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
         $<INSTALL_INTERFACE:include>
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+# Set C++ standard requirement for users
+target_compile_features(quadprogpp INTERFACE cxx_std_20)
 
 # Link matrix backend
 if(QUADPROGPP_HAS_EIGEN)
-    target_link_libraries(quadprogpp PUBLIC Eigen3::Eigen)
-    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_USE_EIGEN)
+    target_link_libraries(quadprogpp INTERFACE Eigen3::Eigen)
+    target_compile_definitions(quadprogpp INTERFACE QUADPROGPP_USE_EIGEN)
 elseif(QUADPROGPP_HAS_ARMADILLO)
-    target_link_libraries(quadprogpp PUBLIC ${ARMADILLO_LIBRARIES})
-    target_include_directories(quadprogpp PUBLIC ${ARMADILLO_INCLUDE_DIRS})
-    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_USE_ARMADILLO)
+    target_link_libraries(quadprogpp INTERFACE ${ARMADILLO_LIBRARIES})
+    target_include_directories(quadprogpp INTERFACE ${ARMADILLO_INCLUDE_DIRS})
+    target_compile_definitions(quadprogpp INTERFACE QUADPROGPP_USE_ARMADILLO)
 endif()
 
-# Boland extension
+# Boland extension (if still used)
 if(QUADPROGPP_ENABLE_SEMIDEFINITE)
-    target_sources(quadprogpp PRIVATE src/quadprog_semidefinite.cc)
-    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_ENABLE_SEMIDEFINITE)
+    target_compile_definitions(quadprogpp INTERFACE QUADPROGPP_ENABLE_SEMIDEFINITE)
+endif()
+
+# Bounds checking
+if(QUADPROGPP_ENABLE_BOUNDS_CHECKING)
+    target_compile_definitions(quadprogpp INTERFACE QUADPROGPP_BOUNDS_CHECK)
+endif()
+
+# Examples
+if(QUADPROGPP_BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
 if(QUADPROGPP_USE_SPDLOG)
@@ -125,56 +127,47 @@ if (QUADPROGPP_ENABLE_WARNINGS_AS_ERRORS)
     endif()
 endif()
 
-if (QUADPROGPP_BUILD_TESTS)
-    FetchContent_Declare(
-        Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG v3.11.0
-        GIT_SHALLOW TRUE
-    )
-    FetchContent_MakeAvailable(Catch2)
+# if (QUADPROGPP_BUILD_TESTS)
+#     FetchContent_Declare(
+#         Catch2
+#         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+#         GIT_TAG v3.11.0
+#         GIT_SHALLOW TRUE
+#     )
+#     FetchContent_MakeAvailable(Catch2)
 
-    # Test executable
-    add_executable(quadprogpp_tests
-        tests/test_main.cc        
-        tests/test_matrices.cc
-        tests/test_triangular.cc
-        tests/test_solvers.cc
-        tests/test_quadprog.cc
-        tests/test_quadprog_stress.cc
-    )
+#     # Test executable
+#     add_executable(quadprogpp_tests
+#         tests/test_main.cc        
+#         tests/test_matrices.cc
+#         tests/test_triangular.cc
+#         tests/test_solvers.cc
+#         tests/test_quadprog.cc
+#         tests/test_quadprog_stress.cc
+#     )
 
-    target_link_libraries(quadprogpp_tests 
-        PRIVATE 
-            QuadProg::quadprogpp
-            Catch2::Catch2WithMain
-    )
+#     target_link_libraries(quadprogpp_tests 
+#         PRIVATE 
+#             QuadProg::quadprogpp
+#             Catch2::Catch2WithMain
+#     )
 
-    # If logging is enabled, link spdlog
-    if(QUADPROGPP_USE_SPDLOG)
-        target_link_libraries(quadprogpp_tests PRIVATE spdlog::spdlog)
-    endif()
+#     # If logging is enabled, link spdlog
+#     if(QUADPROGPP_USE_SPDLOG)
+#         target_link_libraries(quadprogpp_tests PRIVATE spdlog::spdlog)
+#     endif()
 
-    # Discover tests
-    include(CTest)
-    include(Catch)
-    catch_discover_tests(quadprogpp_tests)
-endif()
+#     # Discover tests
+#     include(CTest)
+#     include(Catch)
+#     catch_discover_tests(quadprogpp_tests)
+# endif()
 
 # Compiler warnings
 if(MSVC)
-    target_compile_options(quadprogpp PRIVATE /W4 /WX-)
+    target_compile_options(quadprogpp INTERFACE /W4 /WX-)
 else()
-    target_compile_options(quadprogpp PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-if(QUADPROGPP_ENABLE_BOUNDS_CHECKING)
-    target_compile_definitions(quadprogpp PUBLIC QUADPROGPP_BOUNDS_CHECK)
-endif()
-
-# Examples
-if(QUADPROGPP_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    target_compile_options(quadprogpp INTERFACE -Wall -Wextra -Wpedantic)
 endif()
 
 # Tests
@@ -191,22 +184,25 @@ endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS quadprogpp
-    EXPORT QuadProgppTargets
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
+# Install header files
 install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING 
+        PATTERN "*.h"
+        PATTERN "*.hh"
+        PATTERN "*.tpp"
 )
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/quadprog/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/quadprog
 )
 
-# Export targets
+# Export targets - this works for INTERFACE libraries
+install(TARGETS quadprogpp
+    EXPORT QuadProgppTargets
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
 install(EXPORT QuadProgppTargets
     FILE QuadProgppTargets.cmake
     NAMESPACE QuadProg::

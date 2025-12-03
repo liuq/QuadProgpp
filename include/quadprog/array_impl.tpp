@@ -1,4 +1,5 @@
 #include <quadprog/quadprog.h>
+#include <quadprog/array_impl.hh>
 #include <quadprog/internal/logging.h>
 
 // This file contains the implementation of built-in matrix operations
@@ -9,17 +10,17 @@ namespace quadprog
 
     // Built-in matrix operations are implemented inline in the header
     // for now. Future implementations can be added here.
-
-    LowerTriangularMatrix<double> cholesky_decompose(const Matrix<double> &G, double tolerance)
+    template <std::floating_point T>
+    LowerTriangularMatrix<T> cholesky_decompose(const Matrix<T> &G, T tolerance)
     {
         const size_t n = G.rows();
-        LowerTriangularMatrix<double> L(n, 0.0);
+        LowerTriangularMatrix<T> L(n, 0.0);
 
         for (size_t i = 0; i < n; ++i)
         {
             for (size_t j = 0; j <= i; ++j)
             {
-                double sum = G(i, j);
+                T sum = G(i, j);
 
                 for (size_t k = 0; k < j; ++k)
                 {
@@ -47,7 +48,8 @@ namespace quadprog
     }
 
     // Forward elimination: solves Ly = b where L is lower triangular
-    void forward_elimination(const LowerTriangularMatrix<double> &L, Vector<double> &y, const Vector<double> &b)
+    template <std::floating_point T>
+    void forward_elimination(const LowerTriangularMatrix<T> &L, Vector<T> &y, const Vector<T> &b)
     {
         size_t n = L.nrows();
         y(0) = b(0) / L(0, 0);
@@ -61,7 +63,8 @@ namespace quadprog
     }
 
     // Backward substitution: solves Ux = b where U is upper triangular
-    void backward_substitution(const UpperTriangularMatrix<double> &U, Vector<double> &x, const Vector<double> &b)
+    template <std::floating_point T>
+    void backward_substitution(const UpperTriangularMatrix<T> &U, Vector<T> &x, const Vector<T> &b)
     {
         size_t n = U.nrows();
         x(n - 1) = b(n - 1) / U(n - 1, n - 1);
@@ -75,25 +78,26 @@ namespace quadprog
     }
 
     // Solve L * L^T * x = b
-    void cholesky_solve(const LowerTriangularMatrix<double> &L, Vector<double> &x, const Vector<double> &b)
-{
-    size_t n = L.nrows();  // Use size_t instead of int for consistency
-#ifndef NDEBUG
-    if (b.size() != n || x.size() != n)
+    template <std::floating_point T>
+    void cholesky_solve(const LowerTriangularMatrix<T> &L, Vector<T> &x, const Vector<T> &b)
     {
-        throw std::invalid_argument("Dimension mismatch in cholesky_solve");
-    }
+        size_t n = L.nrows(); // Use size_t instead of int for consistency
+#ifndef QUADPROGPP_NO_BOUNDS_CHECK
+        if (b.size() != n || x.size() != n)
+        {
+            throw std::invalid_argument("Dimension mismatch in cholesky_solve");
+        }
 #endif
-    Vector<double> y(n);
-    
-    /* Solve L * y = b */
-    forward_elimination(L, y, b);
+        Vector<T> y(n);
 
-    QUADPROG_TRACE_VECTOR("y after forward elimination", y);
-    
-    /* Solve L^T * x = y */
-    backward_substitution(transpose(L), x, y);
-    QUADPROG_TRACE_VECTOR("x after backward substitution", x);
-}
+        /* Solve L * y = b */
+        forward_elimination(L, y, b);
+
+        QUADPROG_TRACE_VECTOR("y after forward elimination", y);
+
+        /* Solve L^T * x = y */
+        backward_substitution(transpose(L), x, y);
+        QUADPROG_TRACE_VECTOR("x after backward substitution", x);
+    }
 
 } // namespace quadprog

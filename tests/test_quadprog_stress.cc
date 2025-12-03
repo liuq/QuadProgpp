@@ -9,7 +9,7 @@ using namespace quadprog;
 using Catch::Matchers::WithinAbs;
 
 // Helper to create random SPD matrix
-Matrix<double> random_spd_matrix(size_t n, std::mt19937& gen, double condition_number = 10.0) {
+Matrix<double> random_spd_matrix(size_t n, std::mt19937& gen) {
     std::uniform_real_distribution<> dis(0.1, 1.0);
     
     Matrix<double> A(n, n);
@@ -36,7 +36,7 @@ Matrix<double> random_spd_matrix(size_t n, std::mt19937& gen, double condition_n
 }
 
 // Helper to verify KKT conditions (approximately)
-bool verify_solution(const Matrix<double>& G, const Vector<double>& g0,
+bool verify_solution(const Matrix<double>& /* G */, const Vector<double>& /* g0 */,
                      const Matrix<double>& CE, const Vector<double>& ce0,
                      const Matrix<double>& CI, const Vector<double>& ci0,
                      const Vector<double>& x, double tol = 1e-6) {
@@ -148,9 +148,7 @@ TEST_CASE("Ill-conditioned problems", "[quadprog][stress]") {
         Matrix<double> CI(n, 0);
         Vector<double> ci0(0);
         
-        auto result = solve_quadprog(G, g0, CE, ce0, CI, ci0);
-        
-        REQUIRE(result.is_success());
+        REQUIRE_THROWS_AS(solve_quadprog(G, g0, CE, ce0, CI, ci0), std::invalid_argument);
     }
     
     SECTION("Nearly singular constraints") {

@@ -4,6 +4,7 @@
 #include <vector>
 #include <stdexcept>
 #include <cmath>
+#include <concepts>
 #include <memory>
 
 // Matrix backend includes
@@ -47,7 +48,7 @@ namespace quadprog
         return arma::vec(size, arma::fill::zeros);
     }
 
-#else // BUILTIN
+#else                          // BUILTIN
     template <typename T>
     class MatrixImpl
     {
@@ -78,7 +79,7 @@ namespace quadprog
 
         T &operator()(size_t i, size_t j)
         {
-#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (i >= rows_ || j >= cols_)
                 throw std::out_of_range("Matrix index out of range");
 #endif
@@ -87,7 +88,7 @@ namespace quadprog
 
         const T &operator()(size_t i, size_t j) const
         {
-#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (i >= rows_ || j >= cols_)
                 throw std::out_of_range("Matrix index out of range");
 #endif
@@ -100,7 +101,7 @@ namespace quadprog
         // Row access
         std::vector<T> row(size_t i) const
         {
-#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (i >= rows_)
                 throw std::out_of_range("Matrix row index out of range");
 #endif
@@ -115,7 +116,7 @@ namespace quadprog
         // Column access
         std::vector<T> col(size_t j) const
         {
-#ifdef QUADPROGPP_BOUNDS_CHECK            // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (j >= cols_)
                 throw std::out_of_range("Matrix column index out of range");
 #endif
@@ -136,7 +137,7 @@ namespace quadprog
         inline constexpr size_t ncols() const { return cols_; }
 
         constexpr bool is_triangular() const { return false; }
-        constexpr bool is_lower_triangular() const { return false; }   
+        constexpr bool is_lower_triangular() const { return false; }
         constexpr bool is_upper_triangular() const { return false; }
     };
 
@@ -181,7 +182,7 @@ namespace quadprog
 
         T &operator()(size_t i, size_t j)
         {
-#ifdef QUADPROGPP_BOUNDS_CHECK           // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (i < j)
                 throw std::out_of_range("Accessing upper part of LowerTriangularMatrix");
 #endif
@@ -190,7 +191,7 @@ namespace quadprog
 
         const T &operator()(size_t i, size_t j) const
         {
-#ifdef QUADPROGPP_BOUNDS_CHECK          // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (i < j)
                 throw std::out_of_range("Accessing upper part of LowerTriangularMatrix");
 #endif
@@ -198,7 +199,7 @@ namespace quadprog
         }
 
         constexpr bool is_triangular() const { return true; }
-        constexpr bool is_lower_triangular() const { return true; } 
+        constexpr bool is_lower_triangular() const { return true; }
         constexpr bool is_upper_triangular() const { return false; }
 
     protected:
@@ -235,7 +236,7 @@ namespace quadprog
 
         T &operator()(size_t i, size_t j)
         {
-#ifdef QUADPROGPP_BOUNDS_CHECK          // In release mode, skip the check for performance
+#ifdef QUADPROGPP_BOUNDS_CHECK // In release mode, skip the check for performance
             if (i > j)
                 throw std::out_of_range("Accessing lower part of UpperTriangularMatrix");
 #endif
@@ -253,12 +254,10 @@ namespace quadprog
         }
 
         constexpr bool is_triangular() const { return true; }
-        constexpr bool is_lower_triangular() const { return false; }   
+        constexpr bool is_lower_triangular() const { return false; }
         constexpr bool is_upper_triangular() const { return true; }
-     
 
     protected:
-
         friend class LowerTriangularMatrix<T>;
 
         // Access to shared data for creating views
@@ -362,23 +361,30 @@ namespace quadprog
      * @return L, lower triangular matrix
      * @throw std::invalid_argument if G is not positive definite
      */
-    LowerTriangularMatrix<double> cholesky_decompose(const Matrix<double> &G, double tolerance);
+    template <std::floating_point T>
+    LowerTriangularMatrix<T> cholesky_decompose(const Matrix<T> &G, T tolerance);
 
     /**
      * @brief Solve L * y = b with forward elimination, where L is lower triangular
      */
-    void forward_elimination(const LowerTriangularMatrix<double> &L, Vector<double> &y, const Vector<double> &b);
+    template <std::floating_point T>
+    void forward_elimination(const LowerTriangularMatrix<T> &L, Vector<T> &y, const Vector<T> &b);
 
     /**
      * @brief Solve U * y = b with backward substitution, where U is upper triangular
      */
-    void backward_substitution(const UpperTriangularMatrix<double> &U, Vector<double> &y, const Vector<double> &b);
+    template <std::floating_point T>
+    void backward_substitution(const UpperTriangularMatrix<T> &U, Vector<T> &y, const Vector<T> &b);
 
     /**
      * @brief Solve L * L^T * x = b using the Cholesky factor L
      */
-    void cholesky_solve(const LowerTriangularMatrix<double> &L, Vector<double> &x, const Vector<double> &b);
+    template <std::floating_point T>
+    void cholesky_solve(const LowerTriangularMatrix<T> &L, Vector<T> &x, const Vector<T> &b);
 
 #endif
 
 } // namespace quadprog
+
+// include implementation
+#include <quadprog/array_impl.tpp>

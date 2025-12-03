@@ -245,8 +245,5 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md)
 - Original QuadProg++: Luca Di Gaspero
 - Modernization & Boland Extension: [Your Name]
 
-## Acknowledgments
 
-- Donald Goldfarb and Anant Idnani for the original algorithm
-- Natashia Boland for the semi-definite extension
-- Luca Di Gaspero for the original C++ implementation
+
